@@ -1345,7 +1345,8 @@ async function viewMachine() {
           const tn = String(b.tray_now);
           if (tn === "254" && b.vt_tray) {
              const col = (b.vt_tray.tray_color || "888888").substring(0,6);
-             filamentStr = `　<span class="badge badge-outline text-xs border-[color:#${col}]">料架: [${getColorName(col)}] ${esc(getBrand(b.vt_tray))}</span>`;
+             const safeHex = /^[0-9a-fA-F]{6}$/.test(String(col ?? "")) ? col : "888888";
+      filamentStr = `　<span class="badge badge-outline text-xs border-[color:#${safeHex}]">料架: [${esc(getColorName(col))}] ${esc(getBrand(b.vt_tray))}</span>`;
           } else if (b.ams?.ams?.length > 0) {
              for (const a of b.ams.ams) {
                 if (a.tray) {
@@ -1869,7 +1870,7 @@ async function viewSpools() {
       </div>
       
       <div style="display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem;">
-        <input type="text" id="spool-search" placeholder="搜索短编号或名称..." class="input input-bordered" style="flex: 1; min-width: 200px;" value="${currentSearch}">
+        <input type="text" id="spool-search" placeholder="搜索短编号或名称..." class="input input-bordered" style="flex: 1; min-width: 200px;" value="${esc(currentSearch)}">
         <div class="tabs tabs-boxed" style="flex-wrap: nowrap; overflow-x: auto;">
           <a class="tab ${currentFilter === 'all' ? 'tab-active' : ''}" data-filter="all">全部</a>
           <a class="tab ${currentFilter === 'unopened' ? 'tab-active' : ''}" data-filter="unopened">未开封</a>
@@ -1909,7 +1910,7 @@ async function viewSpools() {
                   </select>
                 </td>
                 <td>
-                  <div class="flex items-center gap-1 cursor-pointer hover:bg-base-200 p-1 rounded inline-flex" onclick="window.editWeight('${s.id}', ${s.net_weight_g}, ${gw})">
+                  <div class="flex items-center gap-1 cursor-pointer hover:bg-base-200 p-1 rounded inline-flex" onclick="window.editWeight(\'${esc(s.id)}\', ${Number(s.net_weight_g) || 0}, ${Number(gw) || 1000})">
                     <span class="font-mono font-bold text-primary text-lg">${s.net_weight_g}</span>
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                   </div>
@@ -2043,7 +2044,7 @@ window.showIntakeModal = (preselectColorId = null) => {
   if (colorOpts.length === 0) {
     sel.innerHTML = '<option disabled selected>暂无可入库的颜色，请先在耗材页添加</option>';
   } else {
-    sel.innerHTML = colorOpts.map(o => `<option value="${o.id}" ${o.id === preselectColorId ? 'selected' : ''}>${esc(o.label)}</option>`).join("");
+    sel.innerHTML = colorOpts.map(o => `<option value="${esc(o.id)}" ${o.id === preselectColorId ? \'selected\' : \'\'}>${esc(o.label)}</option>`).join("");
   }
   
   document.getElementById('modal-intake-qty').value = 1;
