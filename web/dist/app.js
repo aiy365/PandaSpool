@@ -20,6 +20,15 @@ function themeBtn() { return `<button type="button" class="btn btn-ghost btn-sm"
 document.addEventListener("click", (e) => { if (e.target.closest("[data-theme-toggle]")) toggleTheme(); });
 applyTheme(currentTheme());
 
+
+function updateAppTitle(title) {
+  const displayTitle = title || "PandaSpool";
+  document.title = displayTitle;
+  const brandEl = document.querySelector(".navbar-center .btn-ghost");
+  if (brandEl) brandEl.innerText = displayTitle;
+  const brandMobileEl = document.querySelector(".drawer-side .text-2xl");
+  if (brandMobileEl) brandMobileEl.innerText = displayTitle;
+}
 async function api(path, opts = {}) {
   const res = await fetch(path, {
     credentials: "include",
