@@ -1,0 +1,18 @@
+[Unit]
+Description=PrintPilot Hub
+After=network.target
+
+[Service]
+Type=simple
+User=printpilot
+Group=printpilot
+WorkingDirectory=/opt/printpilot
+Environment=PRINTPILOT_DATA_DIR=/var/lib/printpilot
+Environment=PRINTPILOT_LISTEN=127.0.0.1:8088
+ExecStart=/opt/printpilot/printpilot
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target

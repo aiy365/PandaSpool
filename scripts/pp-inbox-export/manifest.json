@@ -1,0 +1,302 @@
+[
+  {
+    "inbox_id": "c18b0566de38d306bf5e27a3f37b0a09",
+    "product_id": "091e47913906cd1eb38e2e2eae0eb425",
+    "brand": "R3D",
+    "product_line": "经济型",
+    "material": "PETG",
+    "name": "1000038861.jpg",
+    "file": "/tmp/pp-inbox-export/R3D_经济型_PETG_091e4791/c18b0566_1000038861.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "22c1fef22bbe2eb4fa67c30a61b34818",
+    "product_id": "091e47913906cd1eb38e2e2eae0eb425",
+    "brand": "R3D",
+    "product_line": "经济型",
+    "material": "PETG",
+    "name": "1000038862.jpg",
+    "file": "/tmp/pp-inbox-export/R3D_经济型_PETG_091e4791/22c1fef2_1000038862.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "84fab6e79340da4707f104d5f013e473",
+    "product_id": "6ab0d72faae6d9994dc69dfdb06ab265",
+    "brand": "Polymaker",
+    "product_line": "Panchroma",
+    "material": "PLA Marble",
+    "name": "1000038796.jpg",
+    "file": "/tmp/pp-inbox-export/Polymaker_Panchroma_PLAMarble_6ab0d72f/84fab6e7_1000038796.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "0e5219302b24a7689a966a618fc229fe",
+    "product_id": "6138b9be8d4b4a5f67a05ffe9a8dc4b6",
+    "brand": "Polymaker",
+    "product_line": "",
+    "material": "PETG",
+    "name": "1000038795.jpg",
+    "file": "/tmp/pp-inbox-export/Polymaker__PETG_6138b9be/0e521930_1000038795.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "7bc4119280a43b9f6f0b1ca26424447c",
+    "product_id": "2d2ac091692cf7ac51a2a0f263f5c464",
+    "brand": "Polymaker",
+    "product_line": "Panchroma",
+    "material": "PLA",
+    "name": "1000038797.jpg",
+    "file": "/tmp/pp-inbox-export/Polymaker_Panchroma_PLA_2d2ac091/7bc41192_1000038797.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "4146d3363597fc9458ae7d8e99c2d46d",
+    "product_id": "6ab0d72faae6d9994dc69dfdb06ab265",
+    "brand": "Polymaker",
+    "product_line": "Panchroma",
+    "material": "PLA Marble",
+    "name": "1000038883.jpg",
+    "file": "/tmp/pp-inbox-export/Polymaker_Panchroma_PLAMarble_6ab0d72f/4146d336_1000038883.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "527ff238eec4f934183bf3a878b317f3",
+    "product_id": "6138b9be8d4b4a5f67a05ffe9a8dc4b6",
+    "brand": "Polymaker",
+    "product_line": "",
+    "material": "PETG",
+    "name": "1000038884.jpg",
+    "file": "/tmp/pp-inbox-export/Polymaker__PETG_6138b9be/527ff238_1000038884.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "0a033705f29bcab09e7f98ce90180288",
+    "product_id": "2d2ac091692cf7ac51a2a0f263f5c464",
+    "brand": "Polymaker",
+    "product_line": "Panchroma",
+    "material": "PLA",
+    "name": "1000038885.jpg",
+    "file": "/tmp/pp-inbox-export/Polymaker_Panchroma_PLA_2d2ac091/0a033705_1000038885.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "d9be9f6422a64d46d03af973cefac954",
+    "product_id": "19e970e50e56f851a4323ba135cac5e4",
+    "brand": "kexcelled",
+    "product_line": "",
+    "material": "PETG",
+    "name": "1000038889.jpg",
+    "file": "/tmp/pp-inbox-export/kexcelled__PETG_19e970e5/d9be9f64_1000038889.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "35f690a42354c577a04d790cec8c56c5",
+    "product_id": "19e970e50e56f851a4323ba135cac5e4",
+    "brand": "kexcelled",
+    "product_line": "",
+    "material": "PETG",
+    "name": "1000038888.jpg",
+    "file": "/tmp/pp-inbox-export/kexcelled__PETG_19e970e5/35f690a4_1000038888.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "001fe70d0cbf2f326514974dda39806c",
+    "product_id": "19e970e50e56f851a4323ba135cac5e4",
+    "brand": "kexcelled",
+    "product_line": "",
+    "material": "PETG",
+    "name": "1000038887.jpg",
+    "file": "/tmp/pp-inbox-export/kexcelled__PETG_19e970e5/001fe70d_1000038887.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "269a21e51872cfda6a3a7ee06fb1be3c",
+    "product_id": "19e970e50e56f851a4323ba135cac5e4",
+    "brand": "kexcelled",
+    "product_line": "",
+    "material": "PETG",
+    "name": "1000038886.jpg",
+    "file": "/tmp/pp-inbox-export/kexcelled__PETG_19e970e5/269a21e5_1000038886.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "cee407b67964227fd4a2cfa311b96ebe",
+    "product_id": "70a7c4ee8bbda8fa599a6b2247929ddd",
+    "brand": "三绿",
+    "product_line": "",
+    "material": "PLA+2.0",
+    "name": "1000038891.jpg",
+    "file": "/tmp/pp-inbox-export/三绿__PLA+2.0_70a7c4ee/cee407b6_1000038891.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "c8f9f20bf1da74230227e9964967c696",
+    "product_id": "70a7c4ee8bbda8fa599a6b2247929ddd",
+    "brand": "三绿",
+    "product_line": "",
+    "material": "PLA+2.0",
+    "name": "1000038890.jpg",
+    "file": "/tmp/pp-inbox-export/三绿__PLA+2.0_70a7c4ee/c8f9f20b_1000038890.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "6819a0995372fb2a1375b2e9212babb0",
+    "product_id": "70a7c4ee8bbda8fa599a6b2247929ddd",
+    "brand": "三绿",
+    "product_line": "",
+    "material": "PLA+2.0",
+    "name": "1000038809.jpg",
+    "file": "/tmp/pp-inbox-export/三绿__PLA+2.0_70a7c4ee/6819a099_1000038809.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "a2edb79223bbbe5385e1c9ada66b349a",
+    "product_id": "7ccadea97d2d3fae43625a4a1594410c",
+    "brand": "必趣",
+    "product_line": "",
+    "material": "PLA Translucent",
+    "name": "1000038892.jpg",
+    "file": "/tmp/pp-inbox-export/必趣__PLATranslucent_7ccadea9/a2edb792_1000038892.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "45e2e639d72645a1269001836c8387c9",
+    "product_id": "f3e1fd89c5e297d01ac2626517bb57fa",
+    "brand": "大简",
+    "product_line": "",
+    "material": "PETG HF",
+    "name": "1000038898.jpg",
+    "file": "/tmp/pp-inbox-export/大简__PETGHF_f3e1fd89/45e2e639_1000038898.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "b808ee2eaaf622d64bca4f4ba70cfd30",
+    "product_id": "f3e1fd89c5e297d01ac2626517bb57fa",
+    "brand": "大简",
+    "product_line": "",
+    "material": "PETG HF",
+    "name": "1000038896.jpg",
+    "file": "/tmp/pp-inbox-export/大简__PETGHF_f3e1fd89/b808ee2e_1000038896.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "443211ea8df13ba1d78c035b165f0f47",
+    "product_id": "f3e1fd89c5e297d01ac2626517bb57fa",
+    "brand": "大简",
+    "product_line": "",
+    "material": "PETG HF",
+    "name": "1000038895.jpg",
+    "file": "/tmp/pp-inbox-export/大简__PETGHF_f3e1fd89/443211ea_1000038895.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "a3e46ad6bb5a6fe2b44b9485ff539380",
+    "product_id": "f3e1fd89c5e297d01ac2626517bb57fa",
+    "brand": "大简",
+    "product_line": "",
+    "material": "PETG HF",
+    "name": "1000038894.jpg",
+    "file": "/tmp/pp-inbox-export/大简__PETGHF_f3e1fd89/a3e46ad6_1000038894.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "23587c55691143496a301576cf4975b1",
+    "product_id": "b1f2217bf4e1d27817c4ddfcc3c13bcf",
+    "brand": "大简",
+    "product_line": "",
+    "material": "PETG Matte",
+    "name": "1000038902.jpg",
+    "file": "/tmp/pp-inbox-export/大简__PETGMatte_b1f2217b/23587c55_1000038902.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "dd21ba02709df1d67952c438212f572c",
+    "product_id": "b1f2217bf4e1d27817c4ddfcc3c13bcf",
+    "brand": "大简",
+    "product_line": "",
+    "material": "PETG Matte",
+    "name": "1000038900.jpg",
+    "file": "/tmp/pp-inbox-export/大简__PETGMatte_b1f2217b/dd21ba02_1000038900.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "f99a7f271ea0fb4bac5e0eb704dba916",
+    "product_id": "b1f2217bf4e1d27817c4ddfcc3c13bcf",
+    "brand": "大简",
+    "product_line": "",
+    "material": "PETG Matte",
+    "name": "1000038899.jpg",
+    "file": "/tmp/pp-inbox-export/大简__PETGMatte_b1f2217b/f99a7f27_1000038899.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "112cf6dce1473432163b3082b7f27aa5",
+    "product_id": "a634408a318f50dcf5f56b0816ffbcd2",
+    "brand": "拓竹",
+    "product_line": "新版",
+    "material": "PETG Basic",
+    "name": "1000038905.jpg",
+    "file": "/tmp/pp-inbox-export/拓竹_新版_PETGBasic_a634408a/112cf6dc_1000038905.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "68bc0aa579cea9d81567e3d3ab206a76",
+    "product_id": "a634408a318f50dcf5f56b0816ffbcd2",
+    "brand": "拓竹",
+    "product_line": "新版",
+    "material": "PETG Basic",
+    "name": "1000038904.jpg",
+    "file": "/tmp/pp-inbox-export/拓竹_新版_PETGBasic_a634408a/68bc0aa5_1000038904.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "1ca0af3f5f741239eb68cfa5f2bc71f5",
+    "product_id": "a634408a318f50dcf5f56b0816ffbcd2",
+    "brand": "拓竹",
+    "product_line": "新版",
+    "material": "PETG Basic",
+    "name": "1000038903.jpg",
+    "file": "/tmp/pp-inbox-export/拓竹_新版_PETGBasic_a634408a/1ca0af3f_1000038903.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "4e876995e87cb8a99f9415e3255ad166",
+    "product_id": "cb2f24e169f3e4fcec0159d60465fc63",
+    "brand": "拓竹",
+    "product_line": "",
+    "material": "PLA Basic",
+    "name": "1000038908.jpg",
+    "file": "/tmp/pp-inbox-export/拓竹__PLABasic_cb2f24e1/4e876995_1000038908.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "40b56304b7b6ade1c7178822c15feb3b",
+    "product_id": "cb2f24e169f3e4fcec0159d60465fc63",
+    "brand": "拓竹",
+    "product_line": "",
+    "material": "PLA Basic",
+    "name": "1000038907.jpg",
+    "file": "/tmp/pp-inbox-export/拓竹__PLABasic_cb2f24e1/40b56304_1000038907.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "6417c1e6b848a00f9228e07ae8b95615",
+    "product_id": "cb2f24e169f3e4fcec0159d60465fc63",
+    "brand": "拓竹",
+    "product_line": "",
+    "material": "PLA Basic",
+    "name": "1000038906.jpg",
+    "file": "/tmp/pp-inbox-export/拓竹__PLABasic_cb2f24e1/6417c1e6_1000038906.jpg",
+    "status": "pending"
+  },
+  {
+    "inbox_id": "4989be0fd6c739074b63ac45de7dc749",
+    "product_id": "cb2f24e169f3e4fcec0159d60465fc63",
+    "brand": "拓竹",
+    "product_line": "",
+    "material": "PLA Basic",
+    "name": "1000038909.jpg",
+    "file": "/tmp/pp-inbox-export/拓竹__PLABasic_cb2f24e1/4989be0f_1000038909.jpg",
+    "status": "pending"
+  }
+]
