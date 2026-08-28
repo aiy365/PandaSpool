@@ -17,7 +17,7 @@ func main() {
 		log.Fatal(err)
 	}
 	go func() {
-		log.Printf("printpilot listening on http://%s  data=%s", listen, dataDir)
+		log.Printf("pandaspool listening on http://%s  data=%s", listen, dataDir)
 		if err := srv.ListenAndServe(); err != nil {
 			log.Fatal(err)
 		}

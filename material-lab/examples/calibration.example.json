@@ -1,0 +1,20 @@
+{
+  "machine": "Bambu Lab A1",
+  "nozzle_mm": 0.4,
+  "hotend": "stainless steel",
+  "plate": "Textured PEI",
+  "lot": null,
+  "drying": {
+    "temperature_c": 65,
+    "hours": 6
+  },
+  "environment": {
+    "temperature_c": 28,
+    "humidity_percent": 70
+  },
+  "test_type": "max_volumetric_speed",
+  "result": {
+    "accepted_mm3_s": 8,
+    "method": "manual visual acceptance"
+  }
+}

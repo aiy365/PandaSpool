@@ -1,0 +1,31 @@
+[Unit]
+Description=PrintPilot Material Dashboard
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=printpilot
+Group=printpilot
+UMask=0077
+WorkingDirectory=/opt/printpilot-material-lab
+Environment=PRINTPILOT_DATA_DIR=/var/lib/printpilot-material-lab
+ExecStart=/opt/printpilot-material-lab/.venv/bin/printpilot-material dashboard --port 8765 --no-browser --public-origin https://3d.bstccc.cn --auth-file /var/lib/printpilot-material-lab/dashboard-auth.json
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=15
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ReadWritePaths=/var/lib/printpilot-material-lab
+
+[Install]
+WantedBy=multi-user.target
