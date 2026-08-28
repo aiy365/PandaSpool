@@ -4,7 +4,7 @@ package main
 import (
 	"fmt"
 	"time"
-	"printpilot-hub/internal/bambu"
+	"pandaspool/internal/bambu"
 )
 
 func main() {

@@ -54,6 +54,8 @@ func Open(dataDir string) (*Store, error) {
 	if err := s.migrateSpools(); err != nil {
 		return nil, err
 	}
+	_, _ = s.DB.Exec("ALTER TABLE products ADD COLUMN bambu_preset_id TEXT NOT NULL DEFAULT ''")
+
 	cfg := s.LoadSettings()
 	if cfg.AI.Token == "" {
 		cfg.AI.Token = NewID()
@@ -222,7 +224,7 @@ type Settings struct {
 
 func DefaultSettings() Settings {
 	var s Settings
-	s.Site.Title = "PrintPilot"
+	s.Site.Title = "PandaSpool"
 	s.Bambu.Region = "cn"
 	s.EWeLink.Region = "cn"
 	s.Ezviz.Channel = "1"
@@ -244,7 +246,7 @@ func (s *Store) LoadSettings() Settings {
 		out.Automations.PrintBoostMinutes = 30
 	}
 	if out.Site.Title == "" {
-		out.Site.Title = "PrintPilot"
+		out.Site.Title = "PandaSpool"
 	}
 	return out
 }
@@ -348,6 +350,7 @@ type Product struct {
 	Brand       string            `json:"brand"`
 	ProductLine string            `json:"product_line"`
 	Material    string            `json:"material"`
+	BambuPresetID string            `json:"bambu_preset_id"`
 	Notes       string            `json:"notes"`
 	CreatedAt   string            `json:"created_at"`
 	Colors      []Color           `json:"colors,omitempty"`
@@ -395,7 +398,7 @@ func (s *Store) ListProducts() ([]Product, error) {
 	var out []Product
 	for rows.Next() {
 		var p Product
-		if err := rows.Scan(&p.ID, &p.Brand, &p.ProductLine, &p.Material, &p.Notes, &p.CreatedAt); err != nil {
+		if err := rows.Scan(&p.ID, &p.Brand, &p.ProductLine, &p.Material, &p.BambuPresetID, &p.Notes, &p.CreatedAt); err != nil {
 			return nil, err
 		}
 		cols, err := s.ListColors(p.ID)
@@ -416,7 +419,7 @@ func (s *Store) ListProducts() ([]Product, error) {
 func (s *Store) GetProduct(id string) (Product, error) {
 	var p Product
 	err := s.DB.QueryRow(`SELECT id,brand,product_line,material,notes,created_at FROM products WHERE id=?`, id).
-		Scan(&p.ID, &p.Brand, &p.ProductLine, &p.Material, &p.Notes, &p.CreatedAt)
+		Scan(&p.ID, &p.Brand, &p.ProductLine, &p.Material, &p.BambuPresetID, &p.Notes, &p.CreatedAt)
 	if err != nil {
 		return p, err
 	}
@@ -431,11 +434,11 @@ func (s *Store) SaveProduct(p Product) (Product, error) {
 		p.ID = NewID()
 		p.CreatedAt = time.Now().UTC().Format(time.RFC3339)
 		_, err := s.DB.Exec(`INSERT INTO products(id,brand,product_line,material,notes,created_at) VALUES(?,?,?,?,?,?)`,
-			p.ID, p.Brand, p.ProductLine, p.Material, p.Notes, p.CreatedAt)
+			p.ID, p.Brand, p.ProductLine, p.Material, p.BambuPresetID, p.Notes, p.CreatedAt)
 		return p, err
 	}
 	_, err := s.DB.Exec(`UPDATE products SET brand=?,product_line=?,material=?,notes=? WHERE id=?`,
-		p.Brand, p.ProductLine, p.Material, p.Notes, p.ID)
+		p.Brand, p.ProductLine, p.Material, p.BambuPresetID, p.Notes, p.ID)
 	return p, err
 }
 
