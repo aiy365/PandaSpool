@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily PrintPilot Material Lab backup
+
+[Timer]
+OnCalendar=*-*-* 03:20:00
+Persistent=true
+RandomizedDelaySec=15m
+Unit=printpilot-material-backup.service
+
+[Install]
+WantedBy=timers.target

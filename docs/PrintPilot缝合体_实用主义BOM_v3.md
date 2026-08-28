@@ -1,5 +1,5 @@
 
-# PrintPilot 实用主义架构与 BOM (终极开源版)
+# PandaSpool 实用主义架构与 BOM (终极开源版)
 
 > **修订说明**：本版本深度采纳了 Codex 提出的“完全本地化、去中心化、公开可复刻”架构思想，正式废弃了对云服务器、公网 DDNS 及单一 MIPS 路由器的强依赖，全面转向 **“本地边缘节点 (Hub) + 分布式传感器 (Air Node)”** 的现代开源物联网标准模型。
 
@@ -7,14 +7,14 @@
 
 ## 1. 重新定义产品：100% 本地的私有边缘云
 
-PrintPilot 不再是“一个网页 + 一台远端云服务器”，而是一个像 OctoPrint 或 Home Assistant 一样，**必须部署在打印机同局域网内的边缘计算中枢**。
+PandaSpool 不再是“一个网页 + 一台远端云服务器”，而是一个像 OctoPrint 或 Home Assistant 一样，**必须部署在打印机同局域网内的边缘计算中枢**。
 项目解耦为四个公开、可替换的纯本地模块：
-1. **PrintPilot Hub（核心中枢）**：承载 Web UI、数据库、本地 MQTT Broker、自动化规则引擎、摄像头解包及分发。
-2. **PrintPilot Core（工艺引擎）**：机器/材料/喷嘴 → 耗材参数与 Profile 规则映射。
-3. **PrintPilot Air（环境节点）**：ESP32 采集车间与封箱环境数据（完全摒弃自研固件，全面拥抱 ESPHome）。
-4. **PrintPilot Remote（可选插件）**：只有在用户主动需要时，才配置 Tailscale / WireGuard 进行公网穿透访问。
+1. **PandaSpool Hub（核心中枢）**：承载 Web UI、数据库、本地 MQTT Broker、自动化规则引擎、摄像头解包及分发。
+2. **PandaSpool Core（工艺引擎）**：机器/材料/喷嘴 → 耗材参数与 Profile 规则映射。
+3. **PandaSpool Air（环境节点）**：ESP32 采集车间与封箱环境数据（完全摒弃自研固件，全面拥抱 ESPHome）。
+4. **PandaSpool Remote（可选插件）**：只有在用户主动需要时，才配置 Tailscale / WireGuard 进行公网穿透访问。
 
-**核心底线**：断网可用，所有数据绝对留存在本地（`http://printpilot.local`），无公网暴露，极大的降低了安全与运维门槛。
+**核心底线**：断网可用，所有数据绝对留存在本地（`http://pandaspool.local`），无公网暴露，极大的降低了安全与运维门槛。
 
 ---
 
@@ -36,10 +36,10 @@ PrintPilot 不再是“一个网页 + 一台远端云服务器”，而是一个
 完全推翻 Gemini 此前提出的“通过 TUTK 解包并需要外网 HTTPS + Token 鉴权”的弯路。
 A1 摄像头的局域网解决方案应极简且安全：
 
-1. **直连解包**：PrintPilot Hub（例如 Orange Pi）在本地网络中，直接通过 TLS 6000 端口，使用 LAN Access Code 连接打印机，提取 JPEG 帧。
+1. **直连解包**：PandaSpool Hub（例如 Orange Pi）在本地网络中，直接通过 TLS 6000 端口，使用 LAN Access Code 连接打印机，提取 JPEG 帧。
 2. **多路分发**：Hub 将提取的帧封装为标准的 MJPEG 视频流，通过同源的本地接口（如 `/api/printers/a1/camera`）分发给所有连接到 Hub 的浏览器。
 3. **安全闭环**：
-   - 浏览器与 Hub 均在 `http://printpilot.local` 域内，**彻底消灭了 HTTPS 网页加载 HTTP 视频的 Mixed Content 报错**。
+   - 浏览器与 Hub 均在 `http://pandaspool.local` 域内，**彻底消灭了 HTTPS 网页加载 HTTP 视频的 Mixed Content 报错**。
    - Access Code 仅保存在 Hub 的本地配置文件中，绝对不向前端暴露。
    - 一个上游连接，多个下游浏览器观看，大幅降低打印机网卡负担。
 

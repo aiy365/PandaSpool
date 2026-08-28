@@ -23,7 +23,7 @@ export default function App() {
   return (
     <div className="shell">
       <header className="top">
-        <div className="brand">{me.title || "PrintPilot"}</div>
+        <div className="brand">{me.title || "PandaSpool"}</div>
         <nav>
           <NavLink to="/" end>总览</NavLink>
           <NavLink to="/materials">耗材</NavLink>
@@ -52,14 +52,14 @@ export default function App() {
 }
 
 function Setup({ onDone }) {
-  const [f, setF] = useState({ username: "admin", password: "", title: "PrintPilot" });
+  const [f, setF] = useState({ username: "admin", password: "", title: "PandaSpool" });
   const [err, setErr] = useState("");
   return (
     <div className="auth"><form className="card" onSubmit={async (e) => {
       e.preventDefault();
       try { await api("/api/setup", { method: "POST", body: f }); onDone(); } catch (ex) { setErr(ex.message); }
     }}>
-      <h1>初始化这台 PrintPilot</h1>
+      <h1>初始化这台 PandaSpool</h1>
       <p className="muted">第一次打开。用户名密码只存在本机数据目录，可在设置页改。</p>
       <div className="row"><label>站点名称<input value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} /></label></div>
       <div className="row cols-2">
