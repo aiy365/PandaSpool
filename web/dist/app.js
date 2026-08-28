@@ -854,14 +854,15 @@ async function viewMaterials() {
 }
 
 async function viewProduct(id) {
-  pageLoading("正在打开产品…");
-  let data;
-  try { data = await api("/api/products/" + id); }
-  catch (ex) { pageError(ex); return; }
-  const p = data.product;
-  const drafts = data.drafts || [];
-  const claims = data.claims || [];
-  const conflictKeys = new Set((data.conflicts || []).map((c) => c.key));
+    pageLoading("正在打开产品…");
+    let p, allClaims;
+    try {
+      p = await api("/api/products/" + id);
+      allClaims = await api("/api/claims?product_id=" + id);
+    } catch (ex) { pageError(ex); return; }
+    const drafts = (allClaims || []).filter(c => c.status === "draft");
+    const claims = (allClaims || []).filter(c => c.status !== "draft");
+    const conflictKeys = new Set();
   const colorOpts = `<option value="">产品级（整系列）</option>` + (p.colors || []).map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
   const colorName = (cid) => (p.colors || []).find((c) => c.id === cid)?.name || "整系列";
   const draftCard = drafts.length === 0 ? "" : card(`
