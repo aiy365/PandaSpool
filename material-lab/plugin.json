@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "pandaspool-material-lab",
+  "name": "printpilot-material-lab",
   "version": "0.1.0",
   "description": "3D耗材证据建档、冲突审查、拓竹A1耗材预设生成与校准记录。 / Evidence-backed filament archive and Bambu Studio profile compiler.",
   "author": {

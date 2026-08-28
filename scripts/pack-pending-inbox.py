@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 import os, sqlite3, shutil, tarfile
 
-db = sqlite3.connect("/var/lib/printpilot/app.sqlite3")
+db = sqlite3.connect("/var/lib/pandaspool/app.sqlite3")
 db.row_factory = sqlite3.Row
 out = "/tmp/inbox-pending"
 os.makedirs(out, exist_ok=True)
-src = "/var/lib/printpilot/files/inbox"
+src = "/var/lib/pandaspool/files/inbox"
 for r in db.execute(
     """
     select i.sha256, i.name, p.brand, p.product_line, p.material

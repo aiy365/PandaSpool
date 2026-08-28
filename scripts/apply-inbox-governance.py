@@ -3,7 +3,7 @@
 import json, sqlite3, time, os, secrets
 from datetime import datetime, timezone
 
-DB = "/var/lib/printpilot/app.sqlite3"
+DB = "/var/lib/pandaspool/app.sqlite3"
 NOW = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 P = {

@@ -1,5 +1,5 @@
 import json, sqlite3
-db = sqlite3.connect("/var/lib/printpilot/app.sqlite3")
+db = sqlite3.connect("/var/lib/pandaspool/app.sqlite3")
 raw = db.execute("select v from settings where k='app'").fetchone()[0]
 s = json.loads(raw)
 ew = s.get("ewelink", {})

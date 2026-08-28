@@ -5,8 +5,8 @@ import secrets
 import sqlite3
 from datetime import datetime, timezone
 
-DB = "/var/lib/printpilot/app.sqlite3"
-BAK = "/var/lib/printpilot/app.sqlite3.bak-stock-round2"
+DB = "/var/lib/pandaspool/app.sqlite3"
+BAK = "/var/lib/pandaspool/app.sqlite3.bak-stock-round2"
 
 # 已有色卡：只改库存，不新建
 # (product_id, catalog_name, qty, sheet_label)

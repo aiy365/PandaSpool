@@ -1,6 +1,6 @@
 #!/bin/bash
 set -euo pipefail
-systemctl stop printpilot
-install -o printpilot -g printpilot -m 755 /tmp/printpilot.new /opt/printpilot/printpilot
-systemctl start printpilot
-systemctl is-active printpilot
+systemctl stop pandaspool
+install -o pandaspool -g pandaspool -m 755 /tmp/pandaspool.new /opt/pandaspool/pandaspool
+systemctl start pandaspool
+systemctl is-active pandaspool

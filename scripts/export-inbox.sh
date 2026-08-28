@@ -5,10 +5,10 @@ rm -rf "$OUT"
 mkdir -p "$OUT"
 python3 - << 'PY'
 import json, os, shutil, sqlite3
-src = "/var/lib/printpilot/files/inbox"
+src = "/var/lib/pandaspool/files/inbox"
 out = "/tmp/pp-inbox-export"
 os.makedirs(out, exist_ok=True)
-db = sqlite3.connect("/var/lib/printpilot/app.sqlite3")
+db = sqlite3.connect("/var/lib/pandaspool/app.sqlite3")
 db.row_factory = sqlite3.Row
 prods = {r["id"]: dict(r) for r in db.execute("select id,brand,product_line,material from products")}
 manifest = []

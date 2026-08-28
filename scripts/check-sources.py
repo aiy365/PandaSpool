@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import sqlite3
-db = sqlite3.connect("/var/lib/printpilot/app.sqlite3")
+db = sqlite3.connect("/var/lib/pandaspool/app.sqlite3")
 print("sources", list(db.execute("select source, count(*) from claims group by source")))
 print("pending", db.execute("select count(*) from inbox where status='pending'").fetchone()[0])
 print("drafts", db.execute("select count(*) from claims where status='draft'").fetchone()[0])

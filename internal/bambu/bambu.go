@@ -328,7 +328,7 @@ func (c *Client) startMQTT(region, sn string) {
 	}
 	opts := mqtt.NewClientOptions()
 	opts.AddBroker("ssl://" + host)
-	opts.SetClientID(fmt.Sprintf("printpilot-%d", time.Now().UnixNano()%1e12))
+	opts.SetClientID(fmt.Sprintf("pandaspool-%d", time.Now().UnixNano()%1e12))
 	opts.SetUsername(user)
 	opts.SetPassword(token)
 	opts.SetProtocolVersion(4) // MQTT 3.1.1
