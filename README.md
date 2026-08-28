@@ -1,62 +1,82 @@
-# PrintPilot Hub
+# PandaSpool 🐼🛠️
 
-封箱车间后台：耗材档案、架子账、A1 只读、易微联开关、萤石云预览、仓外空气。
+![Bambu Lab](https://img.shields.io/badge/Ecosystem-Bambu%20Lab-00AE42.svg)
+![Go](https://img.shields.io/badge/Backend-Go-00ADD8.svg)
+![SQLite](https://img.shields.io/badge/Database-SQLite-003B57.svg)
 
-前端是 **Go embed 的静态页**（`web/dist`），UI 用 [daisyUI 5](https://daisyui.com/)（MIT，已 vendor 进 `web/dist/vendor/daisyui.css`），没有在服务器上跑 Node。
+*( [Read in English](#english) | [中文说明往下看](#中文-chinese) )*
 
-**UI 约定（以后都按这个）：** 默认 `data-theme="light"`，顶栏切换 daisyUI `dark`，记在 `localStorage.pp-theme`。控件一律用官方类：`btn` / `input input-bordered` / `select select-bordered` / `textarea` / `card card-body card-title` / `table` / `badge` / `stats` / `alert` / `menu`。颜色只用 `--color-*`，不要写死色值。登录页和后台同一套。
+<a id="english"></a>
+## 🇬🇧 English
 
-**给第二个人：** 拷贝一个二进制 + 本 README。第一次打开浏览器创建管理员，所有密钥都在「设置」里填，不用改配置文件。
+**PandaSpool** is the ultimate self-hosted Filament Inventory and AMS (Automatic Material System) Management Hub designed exclusively for the Bambu Lab 3D printing ecosystem. 
 
-## 本机运行
+Say goodbye to generic spool names and "Unsupported Filament" errors in Bambu Studio. PandaSpool ensures a strict 1:1 binding between your physical filament shelves, your Bambu Studio custom slice presets, and the Bambu Cloud.
 
+### 🌟 Key Features
+- **3-Way Preset Syncing (The "Steal" Mechanism)**: Automatically fetches your custom user presets (UUIDs) from Bambu Cloud. When you mount a spool created via PandaSpool into your AMS, Bambu Studio recognizes it perfectly.
+- **Smart Short Codes & Physical Labels**: Automatically generates intelligent short codes (e.g., `pt001` for Polymaker PETG Transparent) upon intake. 
+- **Cloud Note Injection**: Pushes the generated short code directly into the Bambu Cloud Spool `Note` field, making physical stick-on labeling and matching effortless.
+- **Lightweight & Self-Hosted**: Powered by a blazing-fast Go backend and an embedded SQLite database. No heavy containers required.
+- **Monorepo Ecosystem**: Includes companion tools for a full makerspace setup:
+  - `desk/`: Windows desktop companion utility.
+  - `enclosure-sensor/`: 3D WebGL dashboard for monitoring printer enclosure temperature and humidity.
+  - `material-lab/`: Data analytics and telemetry for filament calibration and testing.
+
+### 🚀 Getting Started
 ```bash
-./printpilot
-# 浏览器打开 http://127.0.0.1:8088
+# Clone the repository
+git clone https://github.com/aiy365/PandaSpool.git
+cd PandaSpool
+
+# Build the main hub
+GOOS=linux GOARCH=amd64 go build -o pandaspool ./cmd/pandaspool
+
+# Run
+./pandaspool
 ```
 
-可选环境变量（只有这两项，其余全在设置页）：
+---
 
-| 变量 | 默认 | 含义 |
-|---|---|---|
-| `PRINTPILOT_DATA_DIR` | `./data` | 数据库和上传文件 |
-| `PRINTPILOT_LISTEN` | `127.0.0.1:8088` | 监听地址 |
+<a id="中文-chinese"></a>
+## 🇨🇳 中文 (Chinese)
 
-公网请放在反向代理后面（Caddy / Nginx），不要把 8088 直接暴露。
+**PandaSpool** 是专为拓竹 (Bambu Lab) 3D打印生态打造的终极私有化耗材库存 (Filament Inventory) 与 AMS (Automatic Material System) 管理中枢。
 
-## 设置页要填什么
+告别 Bambu Studio 中烦人的“不支持的耗材 (Unsupported Filament)”报错！PandaSpool 通过云端级联，确保你的物理耗材架、拓竹切片预设 (Slicing Presets) 与 Bambu Cloud 之间实现 100% 的精准绑定。
 
-1. 站点名称、登录用户名/密码  
-2. 拓竹：账号、密码、地区（cn）、打印机 SN  
-3. 易微联：填和手机 App 同一套账号密码 →「登录并拉设备」→ 在列表里点绑定（三联会拆成通道 1/2/3）→ 试开/试关。APPID 不用填。
-4. 萤石开放平台：AppKey、AppSecret、设备序列号、通道  
-5. 空气上报令牌（给 ESP32）  
-6. AI 令牌：只读档案 / 起草草稿（不能确认、不能改库存）  
+### 🌟 核心功能 (Core Features)
+- **预设无缝级联同步 (Preset Sync)**：打破拓竹生态壁垒，一键从拓竹云端 (Bambu Cloud) 抓取你的自定义切片预设 ID (Custom UUIDs)。在 PandaSpool 选定预设并入库后，AMS 装载将完美被电脑端 Studio 识别，永不报错。
+- **智能短编号生成 (Smart Short Codes)**：耗材入库时，系统会自动提取品牌与颜色的中英文首字母，生成极具辨识度的短编号（例如：Polymaker 透明 PETG -> `pt001`），彻底解放手工编目。
+- **云端备注自动注入 (Cloud Note Injection)**：PandaSpool 在向拓竹云推送新建料盘 (Spool) 时，会自动将短编号注入到拓竹的备注 (Note) 字段中。你在手机 App 里看一眼备注，就能精准对应货架上的实体标签。
+- **极致轻量私有化 (Lightweight Self-Hosted)**：基于 Go 语言构建的极速后端 + SQLite 嵌入式数据库。仅需一个可执行文件即可完成部署，无任何重度容器依赖。
+- **支持动态白标命名 (Dynamic Branding)**：在后台设置即可实时修改全站 UI 标题，打造你的专属耗材库。
 
-耗材治理：资料/Studio/实测并存，冲突不覆盖。厂家和商家不再区分。人手记的是已确认；AI 只进草稿箱，人在产品页确认或驳回。详见 `docs/governance.md`。
+### 🛠️ 创客空间全家桶 (Monorepo Ecosystem)
+本项目采用 Monorepo 架构，集成了完善的周边创客生态工具：
+* **`PandaSpool (Root)`**：核心库存与拓竹云同步管家 (Main Hub)。
+* **`desk/`**：桌面端常驻辅助挂件 (Desktop Companion)。
+* **`enclosure-sensor/`**：基于 3D WebGL 的打印机封箱环境（温湿度）监控看板 (Enclosure Telemetry Dashboard)。
+* **`material-lab/`**：耗材极限测试与参数调优的数据分析看板 (Material Analytics Lab)。
 
-保存后自动重连拓竹 MQTT。不会控制打印机（无暂停/加热/发任务）。
-
-## 轮询节拍
-
-| 谁 | 空闲 | 打印中 / 打印加强 |
-|---|---|---|
-| Hub 易微联自动化 | 60 秒 | 20 秒 |
-| 网站机台页 | 15 秒（离开页面或切后台会停） | 同左 |
-| Desk 托盘 | 设置里的间隔，默认 30 秒 | 取 10 秒和设置值的较小者 |
-
-静态 `app.js` / `styles.css` 带内容 hash，更新后不用强刷。同名颜色再次「加入」会改这一条，不会复制一行。空颜色名仍是独立色卡槽，不合并。
-
-## 从源码打包
-
-前端就是 `web/dist`（手改 `app.js` / `styles.css`），**不要**走 npm build。嵌入进 Go：
-
+### 🚀 快速开始 (Getting Started)
 ```bash
-CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o dist/printpilot ./cmd/printpilot
+# 克隆项目仓库 (Clone)
+git clone https://github.com/aiy365/PandaSpool.git
+cd PandaSpool
+
+# 编译主程序 (Build)
+GOOS=linux GOARCH=amd64 go build -o pandaspool ./cmd/pandaspool
+
+# 运行 (Run)
+./pandaspool
 ```
 
-把 `dist/printpilot` 拷到目标机器，`chmod +x` 后运行。部署脚本：`scripts/deploy-bin.sh`。
+> **最佳实践工作流 (Best Practice Workflow)**：
+> 1. 在 Bambu Studio 电脑端调优并保存你的【自建材料 (Custom Filament)】。
+> 2. 在拓竹 Handy App 手机端新建一个虚拟库存，选中该自建材料。
+> 3. 在 PandaSpool 后台点击【抓取已有料盘作预设】，随后在下拉框绑定它。
+> 4. 点击【入库 (Intake)】，打印标签机贴在实物料盘上，直接塞入 AMS！
 
-## 空气探头（仓外一期）
-
-见仓库文档 `docs/PrintPilot缝合体_实用主义BOM_v3.md` 里的硬件部署方案与 BOM 表。固件向 `POST /api/ingest/air` 上报，Header：`Authorization: Bearer <设置页令牌>`。
+### 📄 协议 (License)
+MIT License
