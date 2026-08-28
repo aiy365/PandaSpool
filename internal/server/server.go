@@ -3,7 +3,7 @@ package server
 import (
 	"io"
 	"io/fs"
-	"printpilot-hub/web"
+	"pandaspool/web"
 	"net/http"
 		"crypto/aes"
 	"crypto/cipher"
@@ -16,10 +16,10 @@ import (
 	"sync"
 	"time"
 	"github.com/gorilla/sessions"
-	"printpilot-hub/internal/bambu"
-	"printpilot-hub/internal/ewelink"
-	"printpilot-hub/internal/ezviz"
-	"printpilot-hub/internal/store"
+	"pandaspool/internal/bambu"
+	"pandaspool/internal/ewelink"
+	"pandaspool/internal/ezviz"
+	"pandaspool/internal/store"
 )
 
 type Server struct {
@@ -85,6 +85,8 @@ func New(dataDir, listen string) (*Server, error) {
 	mux.HandleFunc("/api/products/", s.auth(s.productItem))
 	mux.HandleFunc("/api/spools", s.auth(s.spoolsHandler))
 	mux.HandleFunc("/api/spools/", s.auth(s.spoolItemHandler))
+	mux.HandleFunc("/api/presets", s.auth(s.presetsListHandler))
+	mux.HandleFunc("/api/presets/sync", s.auth(s.presetsSyncHandler))
 	mux.HandleFunc("/api/inbox/", s.authAI(s.inboxItem))
 	mux.HandleFunc("/api/presets/", s.auth(s.presetItem))
 	mux.HandleFunc("/api/colors", s.auth(s.colors))
@@ -123,7 +125,7 @@ func (s *Server) testNotify(w http.ResponseWriter, r *http.Request) {
 		st["total_layer"] = 100
 	}
 
-	go s.sendWebhookNotification("🔧 PrintPilot 连通性测试", st)
+	go s.sendWebhookNotification("🔧 PandaSpool 连通性测试", st)
 	w.Write([]byte("{\"status\":\"ok\"}"))
 }
 

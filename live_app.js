@@ -173,10 +173,10 @@ function renderSetup() {
   root.innerHTML = "";
   root.append(h(`<div class="auth min-h-screen bg-base-200"><div class="auth-tools">${themeBtn()}</div>
     ${card(`
-      <h1 class="card-title">初始化这台 PrintPilot</h1>
+      <h1 class="card-title">初始化这台 PandaSpool</h1>
       <p class="muted">用户名密码只存在本机数据目录，之后在设置页改。拷给第二个人也是先走这一步。</p>
       <form id="f" class="flex flex-col gap-2">
-        ${field("站点名称", `<input name="title" class="input input-bordered w-full" value="PrintPilot">`)}
+        ${field("站点名称", `<input name="title" class="input input-bordered w-full" value="PandaSpool">`)}
         ${field("管理员", `<input name="username" class="input input-bordered w-full" value="admin">`)}
         ${field("密码（≥6 位）", `<input name="password" type="password" class="input input-bordered w-full">`)}
         <p class="text-error" id="err"></p>
@@ -238,7 +238,7 @@ function renderApp(me) {
         </ul>
       </div>
       
-      <span class="btn btn-ghost text-lg text-primary">${esc(me.title || "PrintPilot")}</span>
+      <span class="btn btn-ghost text-lg text-primary">${esc(me.title || "PandaSpool")}</span>
       
       <!-- Desktop Nav -->
       <nav class="menu menu-horizontal px-1 nav-desktop">
