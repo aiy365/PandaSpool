@@ -1402,7 +1402,7 @@ async function viewMachine() {
       <p>PM2.5 <strong>${air.pm25 ?? "—"}</strong>　室温 ${air.t_c ?? "—"} ℃　湿度 ${air.rh ?? "—"} %　有人 ${air.presence ?? "—"}</p>
       <p class="${stale ? "text-warning" : "muted"}">${air.ts ? `探头 ${esc(airAgeText(air.ts))}${stale ? " · 超过 15 分钟没报" : ""}` : "还没有探头数据"}</p>`;
     
-    if (d.ezviz?.configured && window.EZUIKit && $("#ezviz")) {
+    if (d.ezviz?.configured && $("#ezviz")) {
       const playBtn = $("#ez-play");
       const stopBtn = $("#ez-stop");
       if (playBtn && !playBtn.onclick) {
@@ -1483,23 +1483,9 @@ async function viewMachine() {
                rotWrapper.style.top = "0";
             }
             
-            window.__ez = new window.EZUIKit.EZUIKitPlayer({
-              id: "ezviz-sub",
-              accessToken: cam.accessToken,
-              url: cam.url,
-              width: playerW,
-              height: playerH,
-              audio: 0,
-              template: "simple",
-              handleError: (e) => {
-                 console.error("EZUIKit error:", e);
-                 const msg = (e && e.data && e.data.msg) ? e.data.msg : (e.msg || JSON.stringify(e));
-                 toast("播放错误: " + msg, "error", { id: "mach" });
-                 playBtn.textContent = "▶ 播放失败";
-                 playBtn.disabled = false;
-              }
-            });
-            if (window.__ez && window.__ez.play) { window.__ez.play(); }
+            const iframeSrc = `https://open.ys7.com/ezopen/h5/iframe?url=${encodeURIComponent(cam.url)}&accessToken=${encodeURIComponent(cam.accessToken)}&autoplay=1&audio=0`;
+            $("#ezviz-sub").innerHTML = `<iframe src="${iframeSrc}" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>`;
+            window.__ez = { stop: () => { $("#ezviz-sub").innerHTML = ""; } };
             
             playBtn.textContent = "▶ 播放";
             playBtn.disabled = false;
