@@ -90,5 +90,8 @@ GOOS=linux GOARCH=amd64 go build -o pandaspool ./cmd/pandaspool
 > 3. 在 PandaSpool 后台点击【抓取已有料盘作预设】，随后在下拉框绑定它。
 > 4. 点击【入库 (Intake)】，打印标签机贴在实物料盘上，直接塞入 AMS！
 
+### ⚖️ 免责声明 (Disclaimer)
+PandaSpool 是一个独立的社区开源项目，与拓竹科技 (Bambu Lab) 官方无任何关联、赞助、授权或背书。“Bambu Lab” 及相关商标均归其合法所有者所有。本项目仅作为辅助工具，使用用户自行提供的合法凭证与公开网络接口进行交互，使用者需自行承担因使用本软件可能带来的任何数据或账号风险。
+
 ### 📄 协议 (License)
 MIT License
