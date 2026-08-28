@@ -266,7 +266,15 @@ func (s *Server) testEWeLink(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("{\"status\":\"ok\"}"))
 }
 func (s *Server) testEzviz(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("{\"status\":\"ok\"}"))
+	token, err := s.ez.AccessToken()
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]any{"error": err.Error()})
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]any{
+		"ok":        true,
+		"token_len": len(token),
+	})
 }
 
 func (s *Server) ewelinkToken(w http.ResponseWriter, r *http.Request) {
@@ -510,7 +518,7 @@ func (s *Server) automate() {
 func withLog(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Security-Policy",
-			"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; frame-ancestors 'none'")
+			"default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; connect-src 'self' ws: wss: https:; worker-src 'self' blob:; media-src 'self' blob: https:; frame-ancestors 'none'")
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Referrer-Policy", "no-referrer")
 		start := time.Now()
