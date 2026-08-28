@@ -1450,6 +1450,8 @@ async function viewMachine() {
             
             const sub = document.createElement("div");
             sub.id = "ezviz-sub";
+              sub.style.width = "100%";
+              sub.style.height = "100%";
             rotWrapper.appendChild(sub);
             
             const playerW = isPortrait ? uncroppedH : uncroppedW;
