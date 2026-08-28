@@ -2047,7 +2047,7 @@ window.showIntakeModal = (preselectColorId = null) => {
   if (colorOpts.length === 0) {
     sel.innerHTML = '<option disabled selected>暂无可入库的颜色，请先在耗材页添加</option>';
   } else {
-    sel.innerHTML = colorOpts.map(o => `<option value="${esc(o.id)}" ${o.id === preselectColorId ? \'selected\' : \'\'}>${esc(o.label)}</option>`).join("");
+    sel.innerHTML = colorOpts.map(o => `<option value="${esc(o.id)}" ${o.id === preselectColorId ? 'selected' : ''}>${esc(o.label)}</option>`).join("");
   }
   
   document.getElementById('modal-intake-qty').value = 1;
