@@ -3,15 +3,16 @@
 # helpers, not application code. Treating them as vendored keeps the main
 # language bar accurate on the repo home page.
 
-# 1) Mark helper scripts as vendored (excluded from language stats)
-scripts/*         linguist-vendored
-deploy/*          linguist-vendored
-firmware/*        linguist-vendored
-internal/*        linguist-vendored=true
+# 1) Mark helper scripts as vendored (excluded from language stats).
+#    Use ** to recurse, otherwise only top-level files are matched.
+scripts/**        linguist-vendored=true
+deploy/**         linguist-vendored=true
+firmware/**       linguist-vendored=true
+internal/**       linguist-vendored=true
 
 # 2) Documentation folders are docs, not code
-docs/*            linguist-documentation
-*.md              linguist-documentation
+docs/**           linguist-documentation=true
+*.md              linguist-documentation=true
 
 # 3) Explicit declarations (defensive — GitHub would normally detect by ext.)
 *.go              linguist-language=Go
@@ -21,5 +22,5 @@ docs/*            linguist-documentation
 *.sqlite3         linguist-language=SQL
 
 # 4) Lock build artifacts out of stats
-*.tgz             linguist-vendored
-app_remote.sqlite3 linguist-vendored
+*.tgz             linguist-vendored=true
+app_remote.sqlite3 linguist-vendored=true
