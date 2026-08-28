@@ -2,9 +2,36 @@ package store
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 )
+
+const maxShortCodeSeq = 9999
+
+var errShortCodeExhausted = errors.New("短编号序列已用尽")
+
+func isShortCodePrefix(s string) bool {
+	if s == "" || len(s) > 8 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z', c >= '0' && c <= '9':
+		case c == '-' || c == '_' || c == '.':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func likeEscape(s string) string {
+	return strings.NewReplacer("\\", "\\\\", "%", "\\%", "_", "\\_").Replace(s)
+}
 
 type Spool struct {
 	ID                string   `json:"id"`
@@ -90,17 +117,31 @@ func (s *Store) SaveSpool(sp Spool) (Spool, error) {
 }
 
 func (s *Store) NextShortCode(prefix string) (string, error) {
+	if prefix != "" && !isShortCodePrefix(prefix) {
+		return "", fmt.Errorf("非法的短编号前缀: %q", prefix)
+	}
 	var maxCode sql.NullString
-	err := s.DB.QueryRow(fmt.Sprintf(`SELECT short_code FROM spools WHERE short_code LIKE '%s%%' ORDER BY CAST(SUBSTR(short_code, %d) AS INTEGER) DESC LIMIT 1`, prefix, len(prefix)+1)).Scan(&maxCode)
+	err := s.DB.QueryRow(
+		`SELECT short_code FROM spools
+		  WHERE short_code LIKE ? ESCAPE '\'
+		  ORDER BY CAST(SUBSTR(short_code, ?) AS INTEGER) DESC
+		  LIMIT 1`,
+		likeEscape(prefix)+"%", len(prefix)+1,
+	).Scan(&maxCode)
 	if err != nil && err != sql.ErrNoRows {
 		return "", err
 	}
 
 	var seq int
 	if maxCode.Valid && maxCode.String != "" {
-		_, _ = fmt.Sscanf(maxCode.String, prefix+"%d", &seq)
+		if n, convErr := strconv.Atoi(strings.TrimPrefix(maxCode.String, prefix)); convErr == nil {
+			seq = n
+		}
 	}
 	seq++
+	if seq > maxShortCodeSeq {
+		return "", errShortCodeExhausted
+	}
 	return fmt.Sprintf("%s%03d", prefix, seq), nil
 }
 
