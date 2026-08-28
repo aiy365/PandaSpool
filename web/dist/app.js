@@ -36,8 +36,10 @@ async function api(path, opts = {}) {
     ...opts,
     body: opts.body && typeof opts.body !== "string" ? JSON.stringify(opts.body) : opts.body,
   });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || res.statusText);
+  const txt = await res.text();
+  let data = {};
+  try { data = txt ? JSON.parse(txt) : {}; } catch { data = { error: txt }; }
+  if (!res.ok) throw new Error(data.error || txt || res.statusText);
   return data;
 }
 
@@ -45,6 +47,17 @@ function h(html) { const t = document.createElement("template"); t.innerHTML = h
 function val(form, name) { return form.elements[name]?.value ?? ""; }
 function route() { return location.hash.replace(/^#/, "") || "/"; }
 function esc(s) { return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
+
+// 产品/颜色目录缓存：料盘页的入库弹窗和机台页的料盘匹配都依赖它。
+async function ensureCatalog(force = false) {
+  if (!force && window.products && window.colors && Date.now() < (window.__catExp || 0)) return;
+  try {
+    const [ps, cs] = await Promise.all([api("/api/products"), api("/api/colors")]);
+    window.products = ps || [];
+    window.colors = cs || [];
+    window.__catExp = Date.now() + 60 * 1000;
+  } catch { /* 目录失败不阻塞主数据渲染 */ }
+}
 
 function toastHost() {
   let host = $("#pp-toast");
@@ -391,21 +404,13 @@ async function viewHome() {
   catch (ex) { pageError(ex); return; }
   const m = d.machine || {};
   const air = d.air || {};
-  const mqtt = m.error
+  const mqtt = m.error && !m.connected
     ? `<span class="badge badge-error badge-outline">${esc(m.error)}</span>`
     : m.connected
       ? `<span class="badge badge-success">MQTT 已连接</span>`
       : `<a href="#/settings" class="badge badge-ghost hover:badge-primary cursor-pointer">未连接拓竹，点击去设置页填写</a>`;
-  
-    if (document.querySelector("[data-t]")) {
-      const qs = (sel) => document.querySelector(sel);
-      qs("[data-t='light']") && (qs("[data-t='light']").checked = !!air.light);
-      qs("[data-t='box_always']") && (qs("[data-t='box_always']").checked = !!air.box_always);
-      qs("[data-t='box_print']") && (qs("[data-t='box_print']").checked = !!air.box_print);
-      qs("[data-t='room']") && (qs("[data-t='room']").checked = !!air.room);
-    }
 
-    const printing = !!d.printing;
+  const printing = !!d.printing;
   const job = m.subtask || m.job || "";
   const remain = m.remaining != null && m.remaining !== "" ? m.remaining : "—";
   const boost = m.print_boost_active ? `<span class="badge badge-warning">打印加强开着</span>` : "";
@@ -1274,10 +1279,12 @@ async function viewMachine() {
       }
     };
   };
+  let spools = [];
   const draw = async () => {
     let d;
     try { d = await api("/api/machine"); }
     catch (ex) { toast(ex.message, "error", { id: "mach" }); if (!$("#mach")) pageError(ex); return; }
+    ensureCatalog();
     try { spools = await api("/api/spools"); } catch(e) {}
     ensureShell();
     const b = d.bambu || {};
@@ -1346,8 +1353,8 @@ async function viewMachine() {
           "GFA03": "Bambu PLA Silk", "GFA04": "Bambu PLA Tough", "GFA05": "Bambu PLA Sparkle",
           "GFA07": "Bambu PLA Marble", "GFA08": "Bambu PLA Aero", "GFA09": "Bambu PLA CF",
           "GFA11": "Bambu PLA Galaxy", "GFB00": "Bambu ABS", "GFB01": "Bambu ASA",
-          "GFC00": "Bambu PC", "GFC01": "Bambu PC", 
-          "GFE00": "Bambu TPU 95A", "GFF00": "Bambu PVA", 
+          "GFC00": "Bambu PC", "GFC01": "Bambu PC",
+          "GFE00": "Bambu TPU 95A", "GFF00": "Bambu PVA",
           "GFG00": "Bambu PETG Basic", "GFG50": "Bambu PETG-CF",
           "GFN03": "Bambu PA-CF", "GFN04": "Bambu PAHT-CF", "GFN05": "Bambu PA6-CF",
           "GFU01": "Bambu Support G", "GFU02": "Bambu Support W"
@@ -1357,9 +1364,13 @@ async function viewMachine() {
           if (t.tray_info_idx && bmap[t.tray_info_idx]) return bmap[t.tray_info_idx];
           return t.tray_type || "";
         };
+        const rgbOf = (hex) => {
+          const s = String(hex || "").substring(0, 6);
+          if (!/^[0-9a-fA-F]{6}$/.test(s)) return [136, 136, 136];
+          return [parseInt(s.substring(0, 2), 16), parseInt(s.substring(2, 4), 16), parseInt(s.substring(4, 6), 16)];
+        };
         const getColorName = (hex) => {
-          if (!hex || hex.length < 6) return "未知色";
-          const r = parseInt(hex.substring(0, 2), 16), g = parseInt(hex.substring(2, 4), 16), b = parseInt(hex.substring(4, 6), 16);
+          const [r, g, b] = rgbOf(hex);
           const colors = [
             {n:"白色",r:255,g:255,b:255}, {n:"黑色",r:0,g:0,b:0}, {n:"深灰",r:64,g:64,b:64}, {n:"浅灰",r:160,g:160,b:160},
             {n:"红色",r:255,g:0,b:0}, {n:"绿色",r:0,g:200,b:0}, {n:"蓝色",r:0,g:0,b:255}, {n:"黄色",r:255,g:255,b:0},
@@ -1373,77 +1384,73 @@ async function viewMachine() {
           }
           return closest;
         };
+        // 拓竹闲置时外部料架会占位上报 #A0A0A0 一类的灰，不能当成真实耗材。
+        const isPlaceholderGray = (hex) => {
+          const [r, g, b] = rgbOf(hex);
+          return Math.abs(r - g) < 14 && Math.abs(g - b) < 14 && r >= 135 && r <= 190;
+        };
+        const matchSpool = (hex, trayType) => {
+          const [cR, cG, cB] = rgbOf(hex);
+          const tt = String(trayType || "").toLowerCase();
+          let best = null, minDist = Infinity;
+          for (const sp of (spools || [])) {
+            if (sp.status !== "opened") continue;
+            const [sR, sG, sB] = rgbOf(sp.color_hex || "");
+            let dist = (cR-sR)**2 + (cG-sG)**2 + (cB-sB)**2;
+            const mType = (sp.bambu_filament_name || "").toLowerCase();
+            if (tt && mType.includes(tt)) dist -= 20000;
+            if (dist < minDist) { minDist = dist; best = sp; }
+          }
+          return (best && minDist < 20000) ? best : null;
+        };
+        const spoolBadge = (prefix, sp, hex, brand) => {
+          const fname = sp ? (sp.bambu_filament_name || getColorName(sp.color_id)) : getColorName(hex);
+          const label = sp ? `[${sp.short_code}] ${fname}` : `${getColorName(hex)}${brand ? " " + brand : ""}`;
+          return `<span class="badge badge-outline text-xs" style="border-color:#${String(hex||"888888").substring(0,6)}">${esc(prefix)}: ${esc(label)}</span>`;
+        };
+        const gcode = String(b.gcode_state || "").toUpperCase();
+        const idleLike = ["IDLE", "FINISH", "FINISHED", "FAILED"].includes(gcode);
         let filamentStr = "";
-        if (b.tray_now != null && String(b.tray_now) !== "255") {
-          const tn = String(b.tray_now);
-          if (tn === "254" && b.vt_tray) {
-             const col = (b.vt_tray.tray_color || "888888").substring(0,6);
-               const safeHex = /^[0-9a-fA-F]{6}$/.test(String(col ?? "")) ? col : "888888";
-               const trayType = (b.vt_tray.tray_type || "").toLowerCase();
-               
-               let closestSpool = null;
-               let minDist = Infinity;
-               const cR = parseInt(col.substring(0,2)||'88', 16), cG = parseInt(col.substring(2,4)||'88', 16), cB = parseInt(col.substring(4,6)||'88', 16);
-               for (const sp of (spools || [])) {
-                  if (sp.status !== "opened") continue;
-                  // Calculate distance
-                  const spColor = sp.color_hex || "888888";
-                  const sR = parseInt(spColor.substring(0,2)||'88', 16), sG = parseInt(spColor.substring(2,4)||'88', 16), sB = parseInt(spColor.substring(4,6)||'88', 16);
-                  let dist = (cR-sR)**2 + (cG-sG)**2 + (cB-sB)**2;
-                  
-                  // if material matches, prioritize it heavily
-                  const mType = (sp.bambu_filament_name || "").toLowerCase();
-                  if (trayType && mType.includes(trayType)) {
-                     dist -= 20000;
-                  }
-                  
-                  if (dist < minDist) {
-                     minDist = dist;
-                     closestSpool = sp;
-                  }
-               }
-               
-               if (closestSpool && minDist < 20000) { // allows slightly fuzzy matches if material matches well
-                  const fname = closestSpool.bambu_filament_name || getColorName(closestSpool.color_id);
-                  filamentStr = `　<span class="badge badge-outline text-xs border-[color:#${safeHex}]">料架: [${esc(closestSpool.short_code)}] ${esc(fname)}</span>`;
-               } else {
-                  filamentStr = `　<span class="badge badge-outline text-xs border-[color:#${safeHex}]">料架: [${esc(getColorName(col))}] ${esc(getBrand(b.vt_tray))}</span>`;
-               }
+        const tn = b.tray_now != null ? String(b.tray_now) : "";
+        if (tn && tn !== "255") {
+          if (tn === "254") {
+            const col = (b.vt_tray?.tray_color || "").substring(0, 6);
+            if (!b.vt_tray || (idleLike && isPlaceholderGray(col))) {
+              // 闲置 + 占位灰 = 外部料架根本没挂料，别伪装成已装耗材。
+              filamentStr = `　<span class="badge badge-ghost text-xs">进料: 空（外部料架未挂料）</span>`;
+            } else {
+              const sp = matchSpool(col, b.vt_tray.tray_type);
+              filamentStr = "　" + spoolBadge("料架", sp, col, getBrand(b.vt_tray));
+            }
           } else if (b.ams?.ams?.length > 0) {
-             for (const a of b.ams.ams) {
-                if (a.tray) {
-                   for (const t of a.tray) {
-                      if (String(t.id) === tn) {
-                         const col = (t.tray_color || "888888").substring(0,6);
-                           const trayType = (t.tray_type || "").toLowerCase();
-                           
-                           let closestSpool = null;
-                           let minDist = Infinity;
-                           const cR = parseInt(col.substring(0,2)||'88', 16), cG = parseInt(col.substring(2,4)||'88', 16), cB = parseInt(col.substring(4,6)||'88', 16);
-                           for (const sp of (spools || [])) {
-                              if (sp.status !== "opened") continue;
-                              const spColor = sp.color_hex || "888888";
-                              const sR = parseInt(spColor.substring(0,2)||'88', 16), sG = parseInt(spColor.substring(2,4)||'88', 16), sB = parseInt(spColor.substring(4,6)||'88', 16);
-                              let dist = (cR-sR)**2 + (cG-sG)**2 + (cB-sB)**2;
-                              const mType = (sp.bambu_filament_name || "").toLowerCase();
-                              if (trayType && mType.includes(trayType)) { dist -= 20000; }
-                              
-                              if (dist < minDist) { minDist = dist; closestSpool = sp; }
-                           }
-                           
-                           if (closestSpool && minDist < 20000) {
-                              const fname = closestSpool.bambu_filament_name || getColorName(closestSpool.color_id);
-                              filamentStr = `　<span class="badge badge-outline text-xs border-[color:#${col}]">AMS-${tn}: [${esc(closestSpool.short_code)}] ${esc(fname)}</span>`;
-                           } else {
-                              filamentStr = `　<span class="badge badge-outline text-xs border-[color:#${col}]">AMS-${tn}: [${getColorName(col)}] ${esc(getBrand(t))}</span>`;
-                           }
-                      }
-                   }
-                }
-             }
+            outer:
+            for (const a of b.ams.ams) {
+              for (const t of (a.tray || [])) {
+                if (String(t.id) !== tn) continue;
+                const col = (t.tray_color || "888888").substring(0, 6);
+                const sp = matchSpool(col, t.tray_type);
+                filamentStr = "　" + spoolBadge(`AMS-${tn}`, sp, col, getBrand(t));
+                break outer;
+              }
+            }
           }
         }
-        return `<p class="muted mt-2">层数 ${b.layer ?? "—"} / ${b.total_layer ?? "—"}　${esc(b.subtask || "")}${filamentStr}</p>`;
+        // 闲置时顺带展示 AMS 整机装载，替代被 254 占位误导的"当前料盘"。
+        let amsStr = "";
+        if (idleLike && b.ams?.ams?.length > 0) {
+          const chips = [];
+          for (const a of b.ams.ams) {
+            for (const t of (a.tray || [])) {
+              const col = (t.tray_color || "").substring(0, 6);
+              if (!col || !t.tray_type) continue;
+              chips.push(`<span class="badge badge-ghost badge-xs" style="border-color:#${col}">${esc(t.tray_type)} ${esc(getColorName(col))}</span>`);
+              if (chips.length >= 8) break;
+            }
+            if (chips.length >= 8) break;
+          }
+          if (chips.length) amsStr = `<p class="muted mt-1 text-xs">AMS 在位：${chips.join(" ")}</p>`;
+        }
+        return `<p class="muted mt-2">层数 ${b.layer ?? "—"} / ${b.total_layer ?? "—"}　${esc(b.subtask || "")}${filamentStr}</p>${amsStr}`;
       })()}
     `;
     let airTs = Number(air.ts);
@@ -1777,16 +1784,12 @@ async function viewSettings(me) {
     await api("/api/settings", { method: "PUT", body: collect() });
     alert("保存成功!");
   };
-  $("#savewh")?.addEventListener("click", async (e) => {
-    busy(e.currentTarget, saveSite, "save");
-  });
   $("#testwh")?.addEventListener("click", async (e) => {
     busy(e.currentTarget, async () => {
       await api("/api/notify/test", { method: "POST" });
       alert("测试推送指令已下发！请去手机上查看是否收到通知。\n注意：需要先点击左侧的【保存通知设置】！");
     }, "send");
   });
-  $("#savewh").onclick = (e) => busy(e.currentTarget, saveSite, "set");
   $("#sa").onclick = (e) => busy(e.currentTarget, saveSite, "set");
   $("#spw").onclick = (e) => busy(e.currentTarget, async () => {
     await api("/api/settings/password", { method: "POST", body: { username: $("#su").value, old_password: $("#so").value, new_password: $("#sn").value } });
@@ -1913,10 +1916,10 @@ boot().catch((e) => { root.textContent = e.message; });
 async function viewSpools() {
   $("#page")?.classList.remove("page-wide");
   pageLoading("正在获取料盘列表...");
-  
+
   let spools;
   try {
-    spools = await api("/api/spools");
+    [spools] = await Promise.all([api("/api/spools"), ensureCatalog(true)]);
   } catch (ex) {
     pageError(ex);
     return;
@@ -2115,48 +2118,47 @@ window.editWeight = (spoolId, currentW, maxW) => {
   document.getElementById('modal-weight').showModal();
 };
 
-window.showIntakeModal = (preselectColorId = null) => {
-  const sel = document.getElementById('modal-intake-color');
-  sel.innerHTML = '';
-  
-  // Build options
-  const onShelf = (window.products || []).filter(p => !p.draft);
-  const colorOpts = [];
-  for (const p of onShelf) {
-    const pColors = (window.colors || []).filter(c => c.product_id === p.id);
-    for (const c of pColors) {
-      colorOpts.push({ id: c.id, label: `${p.brand} ${p.material} ${c.name}` });
+  window.showIntakeModal = (preselectColorId = null) => {
+    const sel = document.getElementById('modal-intake-color');
+    sel.innerHTML = '';
+
+    // Build options
+    const onShelf = (window.products || []).filter(p => !p.draft);
+    const colorOpts = [];
+    for (const p of onShelf) {
+      const pColors = (window.colors || []).filter(c => c.product_id === p.id);
+      for (const c of pColors) {
+        colorOpts.push({ id: c.id, label: `${p.brand} ${p.material} ${c.name}` });
+      }
     }
-  }
-  
-  if (colorOpts.length === 0) {
-    sel.innerHTML = '<option disabled selected>暂无可入库的颜色，请先在耗材页添加</option>';
-  } else {
-    sel.innerHTML = colorOpts.map(o => `<option value="${esc(o.id)}" ${o.id === preselectColorId ? 'selected' : ''}>${esc(o.label)}</option>`).join("");
-  }
-  
-  document.getElementById('modal-intake-qty').value = 1;
-  const submitBtn = document.getElementById('modal-intake-submit');
-  
-  submitBtn.onclick = async () => {
-    const cId = sel.value;
-    const qty = parseInt(document.getElementById('modal-intake-qty').value, 10);
-    if (!cId || qty < 1) return;
-    
-    submitBtn.disabled = true;
-    try {
-      const res = await api("/api/spools", { method: "POST", body: { color_id: cId, quantity: qty } });
-      const codes = res.map(r => r.short_code).join(", ");
-      toast(`成功处理入库申请。`, "success");
-      document.getElementById('modal-intake').close();
-      if (location.hash === '#/spools') window.onhashchange();
-      if (location.hash === '#/materials') window.onhashchange();
-    } catch (ex) {
-      toast(ex.message, "error");
-    } finally {
-      submitBtn.disabled = false;
+
+    if (colorOpts.length === 0) {
+      sel.innerHTML = '<option disabled selected>暂无可入库的颜色，请先在耗材页添加</option>';
+    } else {
+      sel.innerHTML = colorOpts.map(o => `<option value="${esc(o.id)}" ${o.id === preselectColorId ? 'selected' : ''}>${esc(o.label)}</option>`).join("");
     }
+
+    document.getElementById('modal-intake-qty').value = 1;
+    const submitBtn = document.getElementById('modal-intake-submit');
+
+    submitBtn.onclick = async () => {
+      const cId = sel.value;
+      const qty = parseInt(document.getElementById('modal-intake-qty').value, 10);
+      if (!cId || qty < 1) return;
+
+      submitBtn.disabled = true;
+      try {
+        const res = await api("/api/spools", { method: "POST", body: { color_id: cId, quantity: qty } });
+        const codes = res.slice(-qty).map(r => r.short_code).join(", ");
+        toast(`入库成功：${codes}，请用记号笔写在线盘上`, "success", { sticky: true });
+        document.getElementById('modal-intake').close();
+        if (location.hash === '#/spools') window.onhashchange();
+      } catch (ex) {
+        toast(ex.message, "error");
+      } finally {
+        submitBtn.disabled = false;
+      }
+    };
+
+    document.getElementById('modal-intake').showModal();
   };
-  
-  document.getElementById('modal-intake').showModal();
-};

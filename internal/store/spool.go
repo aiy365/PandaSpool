@@ -146,7 +146,8 @@ func (s *Store) NextShortCode(prefix string) (string, error) {
 }
 
 func (s *Store) UpdateSpoolWeight(id string, netWeightG float64) error {
-	_, err := s.DB.Exec(`UPDATE spools SET net_weight_g=? WHERE id=?`, netWeightG, id)
+	_, err := s.DB.Exec(`UPDATE spools SET net_weight_g=?, last_synced_weight_g=?, last_synced_at=? WHERE id=?`,
+		netWeightG, netWeightG, time.Now().UTC().Format(time.RFC3339), id)
 	return err
 }
 

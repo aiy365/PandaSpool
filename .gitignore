@@ -1,0 +1,23 @@
+# 运行时数据与构建产物，不入库
+*.sqlite3
+*.sqlite3-shm
+*.sqlite3-wal
+*.sqlite3.bak*
+data/files/
+files/inbox/
+files/presets/
+
+# 二进制
+pandaspool
+printpilot-linux-amd64
+*.exe
+desk/printpilot-desk.log
+
+# 前端
+web/node_modules/
+
+# 临时
+.tmp-*
+.codex-tmp/
+/dist/
+data/
