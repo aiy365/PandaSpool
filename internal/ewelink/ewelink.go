@@ -42,7 +42,13 @@ type Client struct {
 	host   string
 	err    string
 	cfg    Config
+	// token 刷新后回调（server 层用它落库），由 New 后设置一次。
+	onRefresh func(at, rt string)
+	http      *http.Client
 }
+
+// coolkit API 偶发不回包，没有超时会挂死调用方（machine/automate 轮询）。
+var httpClient = &http.Client{Timeout: 15 * time.Second}
 
 type Config struct {
 	Region, Account, Password, AppID, AppSecret string
@@ -50,6 +56,21 @@ type Config struct {
 }
 
 func New() *Client { return &Client{} }
+
+func (c *Client) OnTokenRefresh(f func(at, rt string)) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.onRefresh = f
+}
+
+func (c *Client) notifyRefresh() {
+	c.mu.Lock()
+	f, at, rt := c.onRefresh, c.token, c.rt
+	c.mu.Unlock()
+	if f != nil && at != "" {
+		f(at, rt)
+	}
+}
 
 func (c *Client) Configure(cfg Config) {
 	c.mu.Lock()
@@ -177,6 +198,7 @@ func (c *Client) ApplyToken(at string) error {
 			c.cfg.AppID, c.cfg.AppSecret, c.token = app[0], app[1], at
 			c.mu.Unlock()
 			if _, err2 := c.Devices(); err2 == nil {
+				c.notifyRefresh()
 				return nil
 			}
 		}
@@ -186,6 +208,7 @@ func (c *Client) ApplyToken(at string) error {
 		c.mu.Unlock()
 		return err
 	}
+	c.notifyRefresh()
 	return nil
 }
 
@@ -232,6 +255,7 @@ func (c *Client) loginOnce(account, password, region, appID, appSecret string) e
 	c.host = host
 	c.err = ""
 	c.mu.Unlock()
+	c.notifyRefresh()
 	return nil
 }
 
@@ -242,7 +266,7 @@ func (c *Client) postLogin(host, appID, appSecret string, payload map[string]any
 	req.Header.Set("X-CK-Appid", appID)
 	req.Header.Set("X-CK-Nonce", nonce(8))
 	req.Header.Set("Authorization", "Sign "+sign(raw, appSecret))
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -313,7 +337,7 @@ func (c *Client) Devices() ([]Channel, error) {
 	req, _ := http.NewRequest(http.MethodGet, host+"/v2/device/thing?num=0", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-CK-Appid", appid)
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -511,7 +535,7 @@ func (c *Client) Switch(ref string, on bool) error {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("X-CK-Appid", appid)
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}

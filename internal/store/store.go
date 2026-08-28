@@ -263,38 +263,38 @@ func (s *Store) SaveSettings(in Settings) error {
 	}
 	newEWPass := in.EWeLink.Password != "" && in.EWeLink.Password != cur.EWeLink.Password
 	ewAccountChanged := in.EWeLink.Account != "" && in.EWeLink.Account != cur.EWeLink.Account
-	if in.EWeLink.Password == "" {
+	if in.EWeLink.Password == "" || in.EWeLink.Password == "********" {
 		in.EWeLink.Password = cur.EWeLink.Password
 	}
-	if in.EWeLink.AppSecret == "" {
+	if in.EWeLink.AppSecret == "" || in.EWeLink.AppSecret == "********" {
 		in.EWeLink.AppSecret = cur.EWeLink.AppSecret
 	}
-	if in.EWeLink.AccessToken == "" && !newEWPass && !ewAccountChanged {
+	if (in.EWeLink.AccessToken == "" || in.EWeLink.AccessToken == "********") && !newEWPass && !ewAccountChanged {
 		in.EWeLink.AccessToken = cur.EWeLink.AccessToken
 	}
-	if in.EWeLink.RefreshToken == "" && !newEWPass && !ewAccountChanged {
+	if (in.EWeLink.RefreshToken == "" || in.EWeLink.RefreshToken == "********") && !newEWPass && !ewAccountChanged {
 		in.EWeLink.RefreshToken = cur.EWeLink.RefreshToken
 	}
-	if in.Ezviz.AppSecret == "" {
+	if in.Ezviz.AppSecret == "" || in.Ezviz.AppSecret == "********" {
 		in.Ezviz.AppSecret = cur.Ezviz.AppSecret
 	}
 	if in.Ezviz.VerifyCode == "" || in.Ezviz.VerifyCode == "********" {
 		in.Ezviz.VerifyCode = cur.Ezviz.VerifyCode
 	}
-	if in.Automations.WeComSecret == "" {
+	if in.Bambu.Password == "" || in.Bambu.Password == "********" {
+		in.Bambu.Password = cur.Bambu.Password
+	}
+	if in.Bambu.AccessToken == "" || in.Bambu.AccessToken == "********" {
+		in.Bambu.AccessToken = cur.Bambu.AccessToken
+	}
+	if in.Automations.WeComSecret == "" || in.Automations.WeComSecret == "********" {
 		in.Automations.WeComSecret = cur.Automations.WeComSecret
 	}
-	if in.Automations.WeComAESKey == "" {
+	if in.Automations.WeComAESKey == "" || in.Automations.WeComAESKey == "********" {
 		in.Automations.WeComAESKey = cur.Automations.WeComAESKey
 	}
 	if in.Air.Token == "" {
 		in.Air.Token = cur.Air.Token
-	}
-	if in.Automations.WeComSecret == "" {
-		in.Automations.WeComSecret = cur.Automations.WeComSecret
-	}
-	if in.Automations.WeComAESKey == "" {
-		in.Automations.WeComAESKey = cur.Automations.WeComAESKey
 	}
 	if in.Air.Token == "" {
 		in.Air.Token = NewID()
@@ -456,6 +456,27 @@ func (s *Store) DeleteProduct(id string) error {
 
 func (s *Store) ListColors(productID string) ([]Color, error) {
 	rows, err := s.DB.Query(`SELECT id,product_id,name,color_family,unopened,opened,notes FROM colors WHERE product_id=?`, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Color
+	for rows.Next() {
+		var c Color
+		if err := rows.Scan(&c.ID, &c.ProductID, &c.Name, &c.ColorFamily, &c.Unopened, &c.Opened, &c.Notes); err != nil {
+			return nil, err
+		}
+		s.fillColorCost(&c)
+		out = append(out, c)
+	}
+	if out == nil {
+		out = []Color{}
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) ListAllColors() ([]Color, error) {
+	rows, err := s.DB.Query(`SELECT id,product_id,name,color_family,unopened,opened,notes FROM colors`)
 	if err != nil {
 		return nil, err
 	}

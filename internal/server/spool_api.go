@@ -110,6 +110,34 @@ func getBambuFilamentID(material string) string {
 	return "GFL99"
 }
 
+// colorHexFromName 把商家颜色名近似成十六进制色（RRGGBB），与拓竹云端
+// 耗材颜色对齐；认不出的给中灰。
+func colorHexFromName(name string) string {
+	n := name
+	rules := []struct {
+		key string
+		hex string
+	}{
+		{"黑", "171717"}, {"深灰", "52525b"}, {"浅灰", "d4d4d8"}, {"灰", "71717a"}, {"银", "c0c0c0"},
+		{"白", "ffffff"},
+		{"酒红", "be123c"}, {"玫红", "d946ef"}, {"粉", "f472b6"}, {"红", "ef4444"},
+		{"橙", "f97316"},
+		{"金黄", "d4a017"}, {"黄", "eab308"}, {"金", "daa520"},
+		{"墨绿", "166534"}, {"嫩绿", "86efac"}, {"浅绿", "86efac"}, {"深绿", "166534"}, {"绿", "22c55e"},
+		{"青", "06b6d4"},
+		{"天蓝", "38bdf8"}, {"浅蓝", "38bdf8"}, {"深蓝", "1d4ed8"}, {"蓝", "3b82f6"},
+		{"深紫", "581c87"}, {"紫", "a855f7"},
+		{"棕", "78350f"}, {"木", "78350f"}, {"咖", "6f4e37"},
+		{"透明", "e0f2fe"}, {"自然", "e0f2fe"}, {"骨", "fef3c7"}, {"米", "fef3c7"}, {"肤", "fef3c7"},
+	}
+	for _, r := range rules {
+		if strings.Contains(n, r.key) {
+			return r.hex
+		}
+	}
+	return "a0a0a0"
+}
+
 func (s *Server) spoolIntake(w http.ResponseWriter, r *http.Request) {
 	var req intakeReq
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -168,7 +196,7 @@ func (s *Server) spoolIntake(w http.ResponseWriter, r *http.Request) {
 		f := bambu.CloudFilament{
 			FilamentID:   filamentID,
 			FilamentName: filamentName,
-			Color:        "FF0000FF", // fallback color
+			Color:        colorHexFromName(targetColor.Name) + "FF",
 			NetWeight:    1000,
 			Note:         fmt.Sprintf("%s (%s) - PandaSpool Sync", shortCode, targetColor.Name),
 		}
@@ -189,8 +217,10 @@ func (s *Server) spoolIntake(w http.ResponseWriter, r *http.Request) {
 			BambuFilamentID:   filamentID,
 			BambuFilamentName: filamentName,
 			BambuRegion:       cfg.Bambu.Region,
+			ColorHex:          colorHexFromName(targetColor.Name),
 			NetWeightG:        1000,
 			Status:            "unopened",
+			SyncEnabled:       true,
 		}
 
 		_, err = s.st.SaveSpool(sp)
