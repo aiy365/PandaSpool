@@ -714,15 +714,18 @@ async function viewMaterials() {
           <h1 class="card-title mb-1">耗材盘点</h1>
           <p class="muted text-sm">默认只看架子上的卷。色卡目录收在「色卡 n 色」，点进产品再改库存。</p>
         </div>
-        <details class="inv-new">
-          <summary class="btn btn-outline btn-sm">新建产品</summary>
-          <div class="inv-new-body">
-            <div class="row cols-3">
-              ${field("品牌", inputEl("b"))}
-              ${field("系列", inputEl("l"))}
-              ${field("材料", inputEl("m", `value="PLA"`))}
-            </div>
-            <div class="card-actions"><button class="btn btn-primary btn-sm" id="add">创建并进入</button></div>
+        <details class="inv-new" id="inv-new-details">
+            <summary class="btn btn-outline btn-sm">新建产品</summary>
+            <div class="inv-new-body">
+              <div class="row cols-2">
+                ${field("关联官方预设", selectEl("new_bpi", `<option value="">-- 请先抓取并选择底层预设 --</option>`))}
+                ${field("细分系列", inputEl("l", `placeholder="如：哑光 / 渐变 (选填)"`))}
+              </div>
+              <div class="row cols-2">
+                ${field("品牌 (自动锁定)", inputEl("b", `readonly class="input input-bordered w-full bg-base-200"`))}
+                ${field("材质 (自动锁定)", inputEl("m", `readonly class="input input-bordered w-full bg-base-200"`))}
+              </div>
+              <div class="card-actions"><button class="btn btn-primary btn-sm" id="add">创建并进入</button></div>
           </div>
         </details>
       </div>
