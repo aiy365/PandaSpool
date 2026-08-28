@@ -882,12 +882,15 @@ async function viewProduct(id) {
     ${card(`
       <h1 class="card-title">${esc(p.brand)} ${esc(p.product_line)}</h1>
       ${specStrip(p.card)}
-      <div class="row cols-3">
-        ${field("品牌", inputEl("pb", `value="${esc(p.brand)}"`))}
-        ${field("系列", inputEl("pl", `value="${esc(p.product_line)}"`))}
-        ${field("材料", inputEl("pm", `value="${esc(p.material)}"`))}
-      </div>
-      ${field("备注", textareaEl("pn", p.notes || ""))}
+        <div class="row cols-2">
+          ${field("关联官方预设", selectEl("pbpi", `<option value="">-- 请先抓取并选择底层预设 --</option>`))}
+          ${field("细分系列", inputEl("pl", `value="${esc(p.product_line)}" placeholder="如：哑光 / 渐变 (选填)"`))}
+        </div>
+        <div class="row cols-2">
+          ${field("品牌 (自动锁定)", inputEl("pb", `value="${esc(p.brand)}" readonly class="input input-bordered w-full bg-base-200"`))}
+          ${field("材质 (自动锁定)", inputEl("pm", `value="${esc(p.material)}" readonly class="input input-bordered w-full bg-base-200"`))}
+        </div>
+        ${field("备注", textareaEl("pn", p.notes || ""))}
       <div class="card-actions">
         <button class="btn btn-primary" id="savep">保存产品</button>
         <button class="btn btn-error btn-outline" id="delp">删除</button>
