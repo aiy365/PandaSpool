@@ -69,7 +69,7 @@ func (s *Store) SaveSpool(sp Spool) (Spool, error) {
 			sp.Status = "opened"
 		}
 		if sp.ShortCode == "" {
-			sp.ShortCode, _ = s.NextShortCode()
+			sp.ShortCode, _ = s.NextShortCode("PP-")
 		}
 		syncEnabled := 0
 		if sp.SyncEnabled {
@@ -89,19 +89,19 @@ func (s *Store) SaveSpool(sp Spool) (Spool, error) {
 	return sp, err
 }
 
-func (s *Store) NextShortCode() (string, error) {
+func (s *Store) NextShortCode(prefix string) (string, error) {
 	var maxCode sql.NullString
-	err := s.DB.QueryRow(`SELECT short_code FROM spools WHERE short_code LIKE 'PP-%' ORDER BY CAST(SUBSTR(short_code, 4) AS INTEGER) DESC LIMIT 1`).Scan(&maxCode)
+	err := s.DB.QueryRow(fmt.Sprintf(`SELECT short_code FROM spools WHERE short_code LIKE '%s%%' ORDER BY CAST(SUBSTR(short_code, %d) AS INTEGER) DESC LIMIT 1`, prefix, len(prefix)+1)).Scan(&maxCode)
 	if err != nil && err != sql.ErrNoRows {
 		return "", err
 	}
 
 	var seq int
 	if maxCode.Valid && maxCode.String != "" {
-		_, _ = fmt.Sscanf(maxCode.String, "PP-%d", &seq)
+		_, _ = fmt.Sscanf(maxCode.String, prefix+"%d", &seq)
 	}
 	seq++
-	return fmt.Sprintf("PP-%03d", seq), nil
+	return fmt.Sprintf("%s%03d", prefix, seq), nil
 }
 
 func (s *Store) UpdateSpoolWeight(id string, netWeightG float64) error {

@@ -4,7 +4,7 @@ package main
 import (
 	"fmt"
 	"log"
-	"printpilot-hub/internal/store"
+	"pandaspool/internal/store"
 )
 
 func main() {
