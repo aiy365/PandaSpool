@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>仓外一期 · 检测+12V配电 组合演示</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="scene"></canvas>
+
+      <section class="title-card">
+        <p class="eyebrow">PRINTPILOT · 仓外一期外壳</p>
+        <h1>五件原件 + 分件外壳</h1>
+        <p>C3 SuperMini、扩展板、PMS5003、SHT31、4 路继电器。底壳 + 顶盖可打印，M3 四角。</p>
+      </section>
+
+      <aside class="reference-card">
+        <div class="reference-heading">
+          <span>参考装配</span>
+          <span class="status-dot">img2threejs 图元重建</span>
+        </div>
+        <img src="/reference.jpg" alt="仓外检测组合参考图" />
+        <ul>
+          <li>左：C3 + 扩展板 + PMS + SHT31</li>
+          <li>右：4 路继电器 75×74</li>
+          <li>前：四路 12V 圆口</li>
+          <li>分件：底壳 / 顶盖 / 五原件</li>
+        </ul>
+      </aside>
+
+      <nav class="view-controls" aria-label="视角">
+        <button data-view="hero" class="active">斜视</button>
+        <button data-view="front">圆口排</button>
+        <button data-view="top">俯视</button>
+        <button data-view="sensors">探头</button>
+        <button data-view="power">12V / 继电器</button>
+        <button data-view="split">拆开</button>
+      </nav>
+
+      <div class="dock">
+        <label>拆开查看 <input id="explode" type="range" min="0" max="1" step="0.01" value="0" /></label>
+        <label><input id="spin" type="checkbox" checked /> 风扇 / 雷达</label>
+        <div id="picked" class="picked">点零件看名称</div>
+      </div>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
