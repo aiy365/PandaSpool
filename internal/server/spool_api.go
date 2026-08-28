@@ -4,9 +4,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"printpilot-hub/internal/bambu"
-	"printpilot-hub/internal/store"
+	"pandaspool/internal/bambu"
+	"pandaspool/internal/store"
 	"strings"
+	"github.com/mozillazg/go-pinyin"
 )
 
 func (s *Server) spoolsHandler(w http.ResponseWriter, r *http.Request) {
@@ -62,6 +63,34 @@ func (s *Server) spoolsList(w http.ResponseWriter, r *http.Request) {
 type intakeReq struct {
 	ColorID  string `json:"color_id"`
 	Quantity int    `json:"quantity"`
+}
+
+
+func getInitial(s string) string {
+	s = strings.TrimSpace(s)
+	if len(s) == 0 {
+		return "x"
+	}
+	r := []rune(s)[0]
+	if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') {
+		return strings.ToLower(string(r))
+	}
+	dict := map[rune]string{
+		'拓': "t", '竹': "z", '易': "y", '生': "s", '兰': "l", '博': "b", '创': "c", '想': "x", '闪': "s", '铸': "z",
+		'红': "h", '粉': "f", '蓝': "l", '绿': "l", '黄': "h", '黑': "h", '白': "b", '紫': "z", '棕': "z", '透': "t",
+		'金': "j", '银': "y", '灰': "h", '彩': "c", '特': "t", '橙': "c", '青': "q", '木': "m", '自': "z", '明': "m",
+		'亚': "y", '哑': "y", '亮': "l", '丝': "s", '夜': "y", '大': "d", '筒': "t", '无': "w",
+	}
+	if val, ok := dict[r]; ok {
+		return val
+	}
+	a := pinyin.NewArgs()
+	a.Style = pinyin.FirstLetter
+	py := pinyin.Pinyin(string(r), a)
+	if len(py) > 0 && len(py[0]) > 0 {
+		return strings.ToLower(py[0][0])
+	}
+	return "x"
 }
 
 func getBambuFilamentID(material string) string {
@@ -122,10 +151,14 @@ func (s *Server) spoolIntake(w http.ResponseWriter, r *http.Request) {
 	}
 
 	adapter := bambu.NewCloudAdapter(cfg.Bambu.Region, cfg.Bambu.AccessToken)
-	filamentID := getBambuFilamentID(targetProduct.Material)
+	filamentID := targetProduct.BambuPresetID
+	if filamentID == "" {
+		filamentID = getBambuFilamentID(targetProduct.Material)
+	}
 
 	for i := 0; i < req.Quantity; i++ {
-		shortCode, _ := s.st.NextShortCode()
+		prefix := getInitial(targetProduct.Brand) + getInitial(targetColor.Name)
+		shortCode, _ := s.st.NextShortCode(prefix)
 		
 		filamentName := fmt.Sprintf("%s %s %s", targetProduct.Brand, targetProduct.Material, targetColor.Name)
 		if len(filamentName) > 40 {
@@ -137,6 +170,7 @@ func (s *Server) spoolIntake(w http.ResponseWriter, r *http.Request) {
 			FilamentName: filamentName,
 			Color:        "FF0000FF", // fallback color
 			NetWeight:    1000,
+			Note:         fmt.Sprintf("%s (%s) - PandaSpool Sync", shortCode, targetColor.Name),
 		}
 
 		bambuCloudID, err := adapter.CreateFilament(f)
@@ -260,4 +294,61 @@ func (s *Server) spoolDelete(w http.ResponseWriter, r *http.Request, id string) 
 
 	w.Header().Set("Content-Type", "application/json")
 	w.Write([]byte(`{"status":"ok"}`))
+}
+
+func (s *Server) presetsListHandler(w http.ResponseWriter, r *http.Request) {
+	val, _ := s.st.GetMeta("bambu_presets")
+	if val == "" {
+		val = "[]"
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(val))
+}
+
+func (s *Server) presetsSyncHandler(w http.ResponseWriter, r *http.Request) {
+	cfg := s.st.LoadSettings()
+	if cfg.Bambu.AccessToken == "" {
+		http.Error(w, "bambu token not configured", http.StatusBadRequest)
+		return
+	}
+
+	adapter := bambu.NewCloudAdapter(cfg.Bambu.Region, cfg.Bambu.AccessToken)
+	filaments, err := adapter.ListFilaments()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	type Preset struct {
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		Vendor   string `json:"vendor"`
+		Material string `json:"material"`
+	}
+	presetMap := make(map[string]Preset)
+	for _, f := range filaments {
+		if f.FilamentID != "" {
+            name := f.FilamentName
+            if name == "" {
+                name = f.FilamentID
+            }
+			presetMap[f.FilamentID] = Preset{
+				ID:       f.FilamentID,
+				Name:     f.FilamentVendor + " " + name,
+				Vendor:   f.FilamentVendor,
+				Material: f.Category,
+			}
+		}
+	}
+	
+	var out []Preset
+	for _, p := range presetMap {
+		out = append(out, p)
+	}
+	
+	b, _ := json.Marshal(out)
+	s.st.SetMeta("bambu_presets", string(b))
+	
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(b)
 }
