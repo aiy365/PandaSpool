@@ -1,0 +1,22 @@
+{
+  "PETG_Transparent.pdf": {
+    "authority": "manufacturer_tds",
+    "source_organization": "R3D",
+    "region": "global"
+  },
+  "codex-clipboard-9e5908b1-6746-43d6-998e-bd37b95df3c4.jpg": {
+    "authority": "reseller",
+    "source_organization": "R3D国内销售渠道",
+    "region": "CN"
+  },
+  "codex-clipboard-99c44916-518f-4ef8-9bb6-815a7f462e9e.png": {
+    "authority": "manufacturer_page",
+    "source_organization": "R3D",
+    "region": "global"
+  },
+  "https://r3dprint.com/products/transparent-petg-filament": {
+    "authority": "manufacturer_page",
+    "source_organization": "R3D",
+    "region": "global"
+  }
+}

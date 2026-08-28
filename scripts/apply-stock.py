@@ -3,8 +3,8 @@
 import os
 import sqlite3
 
-DB = "/var/lib/printpilot/app.sqlite3"
-BAK = "/var/lib/printpilot/app.sqlite3.bak-stock-20260819-hot"
+DB = "/var/lib/pandaspool/app.sqlite3"
+BAK = "/var/lib/pandaspool/app.sqlite3.bak-stock-20260819-hot"
 
 # product_id, catalog name, sheet qty, sheet color label
 # 整数 N → 未开封 N + 封；小数 N → 未开封 floor(N) + 开封 1。备注保留登记表原数。

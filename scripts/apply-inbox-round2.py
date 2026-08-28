@@ -4,7 +4,7 @@ import secrets
 import sqlite3
 from datetime import datetime, timezone
 
-DB = "/var/lib/printpilot/app.sqlite3"
+DB = "/var/lib/pandaspool/app.sqlite3"
 NOW = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 SRC = "资料"
 

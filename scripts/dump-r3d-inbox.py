@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import json, sqlite3
 PID = "091e47913906cd1eb38e2e2eae0eb425"
-db = sqlite3.connect("/var/lib/printpilot/app.sqlite3")
+db = sqlite3.connect("/var/lib/pandaspool/app.sqlite3")
 db.row_factory = sqlite3.Row
 print("===PRODUCT===")
 print(dict(db.execute("select id,brand,product_line,material from products where id=?", (PID,)).fetchone()))

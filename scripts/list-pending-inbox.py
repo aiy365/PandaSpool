@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import json, sqlite3, os
-db = sqlite3.connect("/var/lib/printpilot/app.sqlite3")
+db = sqlite3.connect("/var/lib/pandaspool/app.sqlite3")
 db.row_factory = sqlite3.Row
 print("===PENDING===")
 for r in db.execute("""
@@ -12,5 +12,5 @@ order by i.created_at, i.name
     print(json.dumps(dict(r), ensure_ascii=False))
 print("===PENDING COUNT===", db.execute("select count(*) from inbox where status='pending'").fetchone()[0])
 print("===FILES DIR===")
-print("/var/lib/printpilot/files/inbox")
-os.system("ls -l /var/lib/printpilot/files/inbox | tail -n 30")
+print("/var/lib/pandaspool/files/inbox")
+os.system("ls -l /var/lib/pandaspool/files/inbox | tail -n 30")

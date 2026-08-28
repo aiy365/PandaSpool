@@ -1,0 +1,17 @@
+[Unit]
+Description=PrintPilot Material Lab local backup
+After=printpilot-material-dashboard.service
+
+[Service]
+Type=oneshot
+User=printpilot
+Group=printpilot
+UMask=0077
+WorkingDirectory=/opt/printpilot-material-lab
+Environment=PRINTPILOT_DATA_DIR=/var/lib/printpilot-material-lab
+ExecStart=/opt/printpilot-material-lab/.venv/bin/printpilot-material backup --output-dir /var/lib/printpilot-material-lab/backups --keep 30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/printpilot-material-lab

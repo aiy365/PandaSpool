@@ -2,7 +2,7 @@
 import secrets, sqlite3
 from datetime import datetime, timezone
 
-DB = "/var/lib/printpilot/app.sqlite3"
+DB = "/var/lib/pandaspool/app.sqlite3"
 PID = "091e47913906cd1eb38e2e2eae0eb425"
 INBOX = "a52ea438bdbdd9f625b42ffe06aa3706"
 NOW = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")

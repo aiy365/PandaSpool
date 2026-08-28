@@ -1,5 +1,5 @@
 import json, sqlite3
-db = sqlite3.connect("/var/lib/printpilot/app.sqlite3")
+db = sqlite3.connect("/var/lib/pandaspool/app.sqlite3")
 db.row_factory = sqlite3.Row
 print("===PRODUCTS===")
 for r in db.execute("select id,brand,product_line,material,notes from products order by brand, product_line, material"):

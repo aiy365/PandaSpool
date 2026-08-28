@@ -1,0 +1,153 @@
+[
+  {
+    "key": "density_g_cm3",
+    "value": 1.27,
+    "unit": "g/cm³",
+    "source": "PETG_Transparent.pdf",
+    "location": "page 1",
+    "authority": "manufacturer_tds",
+    "scope": {"region": "global"},
+    "review_status": "approved"
+  },
+  {
+    "key": "nozzle_temperature_range_c",
+    "value": [230, 260],
+    "unit": "°C",
+    "source": "PETG_Transparent.pdf",
+    "location": "page 2",
+    "authority": "manufacturer_tds",
+    "scope": {"region": "global"},
+    "review_status": "approved"
+  },
+  {
+    "key": "bed_temperature_range_c",
+    "value": [70, 90],
+    "unit": "°C",
+    "source": "PETG_Transparent.pdf",
+    "location": "page 2",
+    "authority": "manufacturer_tds",
+    "scope": {"region": "global"},
+    "review_status": "approved"
+  },
+  {
+    "key": "fan_speed_range_percent",
+    "value": [10, 40],
+    "unit": "%",
+    "source": "PETG_Transparent.pdf",
+    "location": "page 2",
+    "authority": "manufacturer_tds",
+    "scope": {"region": "global"},
+    "review_status": "approved"
+  },
+  {
+    "key": "max_print_speed_mm_s",
+    "value": 300,
+    "unit": "mm/s",
+    "source": "PETG_Transparent.pdf",
+    "location": "page 2",
+    "authority": "manufacturer_tds",
+    "scope": {"region": "global"},
+    "review_status": "approved",
+    "notes": "营销速度不得转换为最大体积流量。"
+  },
+  {
+    "key": "minimum_nozzle_mm",
+    "value": 0.2,
+    "unit": "mm",
+    "source": "PETG_Transparent.pdf",
+    "location": "page 2",
+    "authority": "manufacturer_tds",
+    "scope": {"region": "global"},
+    "review_status": "approved"
+  },
+  {
+    "key": "minimum_nozzle_mm",
+    "value": 0.3,
+    "unit": "mm",
+    "source": "codex-clipboard-9e5908b1-6746-43d6-998e-bd37b95df3c4.jpg",
+    "location": "国内销售参数图",
+    "authority": "reseller",
+    "scope": {"region": "CN"},
+    "review_status": "approved"
+  },
+  {
+    "key": "tensile_strength_xy_mpa",
+    "value": 44,
+    "unit": "MPa",
+    "source": "PETG_Transparent.pdf",
+    "location": "page 1",
+    "authority": "manufacturer_tds",
+    "scope": {"region": "global"},
+    "review_status": "approved"
+  },
+  {
+    "key": "tensile_strength_xy_mpa",
+    "value": 41,
+    "unit": "MPa",
+    "source": "codex-clipboard-9e5908b1-6746-43d6-998e-bd37b95df3c4.jpg",
+    "location": "国内销售参数图",
+    "authority": "reseller",
+    "scope": {"region": "CN"},
+    "review_status": "approved"
+  },
+  {
+    "key": "flexural_strength_xy_mpa",
+    "value": 79,
+    "unit": "MPa",
+    "source": "PETG_Transparent.pdf",
+    "location": "page 2",
+    "authority": "manufacturer_tds",
+    "scope": {"region": "global"},
+    "review_status": "approved"
+  },
+  {
+    "key": "flexural_strength_xy_mpa",
+    "value": 68,
+    "unit": "MPa",
+    "source": "codex-clipboard-9e5908b1-6746-43d6-998e-bd37b95df3c4.jpg",
+    "location": "国内销售参数图",
+    "authority": "reseller",
+    "scope": {"region": "CN"},
+    "review_status": "approved"
+  },
+  {
+    "key": "flexural_modulus_xy_mpa",
+    "value": 2158,
+    "unit": "MPa",
+    "source": "PETG_Transparent.pdf",
+    "location": "page 2",
+    "authority": "manufacturer_tds",
+    "scope": {"region": "global"},
+    "review_status": "approved"
+  },
+  {
+    "key": "flexural_modulus_xy_mpa",
+    "value": 2079,
+    "unit": "MPa",
+    "source": "codex-clipboard-9e5908b1-6746-43d6-998e-bd37b95df3c4.jpg",
+    "location": "国内销售参数图",
+    "authority": "reseller",
+    "scope": {"region": "CN"},
+    "review_status": "approved"
+  },
+  {
+    "key": "layer_impact_strength_z_kj_m2",
+    "value": 2.8,
+    "unit": "kJ/m²",
+    "source": "PETG_Transparent.pdf",
+    "location": "page 2",
+    "authority": "manufacturer_tds",
+    "scope": {"region": "global"},
+    "review_status": "approved"
+  },
+  {
+    "key": "layer_impact_strength_z_kj_m2",
+    "value": 1.85,
+    "unit": "kJ/m²",
+    "source": "codex-clipboard-9e5908b1-6746-43d6-998e-bd37b95df3c4.jpg",
+    "location": "国内销售参数图",
+    "authority": "reseller",
+    "scope": {"region": "CN"},
+    "review_status": "approved"
+  }
+]

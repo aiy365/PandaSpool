@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import json, sqlite3
-db = sqlite3.connect("/var/lib/printpilot/app.sqlite3")
+db = sqlite3.connect("/var/lib/pandaspool/app.sqlite3")
 db.row_factory = sqlite3.Row
 for r in db.execute("""
 select p.brand, p.product_line, p.material, c.id, c.source, c.status, c.claim_key, c.claim_value, c.unit, ifnull(c.color_id,'') color_id, c.raw

@@ -1,0 +1,4 @@
+interface:
+  display_name: "耗材建档、预设与库存"
+  short_description: "建立可追溯耗材档案、生成拓竹预设并维护聚合库存盘点"
+  default_prompt: "使用 $manage-filament-library 将耗材资料建档、生成可验证预设，并按我的指令查看或调整库存。"
