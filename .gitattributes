@@ -1,20 +1,23 @@
 # Force GitHub Linguist to count Go as the primary language of this repository.
-# The `scripts/` directory contains Python utilities that are deployment/ops
-# helpers, not application code. Treating them as vendored keeps the main
-# language bar accurate on the repo home page.
 
-# 1) Mark helper scripts as vendored (excluded from language stats).
-#    Use ** to recurse, otherwise only top-level files are matched.
+# 1) Mark helper scripts and sub-projects as vendored to let Go dominate.
 scripts/**        linguist-vendored=true
 deploy/**         linguist-vendored=true
 firmware/**       linguist-vendored=true
-internal/**       linguist-vendored=true
+
+# Mark sub-projects as vendored if we only want Go to be the primary lang
+material-lab/**   linguist-vendored=true
+desk/**           linguist-vendored=true
+enclosure-sensor/** linguist-vendored=true
+web/node_modules/** linguist-vendored=true
+web/dist/**       linguist-vendored=true
+web/src/wrap.py   linguist-vendored=true
 
 # 2) Documentation folders are docs, not code
 docs/**           linguist-documentation=true
 *.md              linguist-documentation=true
 
-# 3) Explicit declarations (defensive — GitHub would normally detect by ext.)
+# 3) Explicit declarations
 *.go              linguist-language=Go
 *.mod             linguist-language=Go
 *.sum             linguist-language=Go
