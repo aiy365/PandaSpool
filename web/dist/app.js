@@ -1010,7 +1010,7 @@ async function viewProduct(id) {
       </table></div>
     `)}`;
   $("#savep").onclick = (e) => busy(e.currentTarget, async () => {
-    await api("/api/products/" + id, { method: "PUT", body: { brand: $("#pb").value, product_line: $("#pl").value, material: $("#pm").value, notes: $("#pn").value } });
+    await api("/api/products", { method: "POST", body: { id: id, brand: $("#pb").value, product_line: $("#pl").value, material: $("#pm").value, notes: $("#pn").value, bambu_preset_id: $("#pbpi") ? $("#pbpi").value : "" } });
     toast("产品已保存", "success");
     viewProduct(id);
   });
