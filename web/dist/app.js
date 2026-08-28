@@ -820,10 +820,34 @@ async function viewMaterials() {
     if (c && !e.target.closest("details")) location.hash = "#/materials/" + c.dataset.id;
   };
   $("#add").onclick = (e) => busy(e.currentTarget, async () => {
-    const p = await api("/api/products", { method: "POST", body: { brand: $("#b").value, product_line: $("#l").value, material: $("#m").value } });
+    const p = await api("/api/products", { method: "POST", body: { brand: $("#b").value, product_line: $("#l").value, material: $("#m").value, bambu_preset_id: $("#new_bpi") ? $("#new_bpi").value : "" } });
     toast("产品已创建", "success");
     location.hash = "#/materials/" + p.id;
   });
+
+  const detailsEl = $("#inv-new-details");
+  if (detailsEl) {
+    detailsEl.addEventListener("toggle", (e) => {
+      if (detailsEl.open) {
+        api("/api/presets/sync", { method: "POST" }).then(presets => {
+          const sel = $("#new_bpi");
+          if (!sel) return;
+          let html = `<option value="">-- 请选择关联预设 --</option>`;
+          for (const pr of presets) {
+            html += `<option value="${pr.id}">${esc(pr.name)}</option>`;
+          }
+          sel.innerHTML = html;
+          sel.onchange = (ev) => {
+            const pr = presets.find(x => x.id === ev.target.value);
+            if (pr) {
+              $("#b").value = pr.vendor || pr.name.split(' ')[0];
+              $("#m").value = pr.material || "PLA";
+            }
+          };
+        }).catch(err => console.warn("Failed to load presets for new product", err));
+      }
+    });
+  }
 }
 
 async function viewProduct(id) {
