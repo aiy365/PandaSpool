@@ -15,6 +15,8 @@ import (
 	_ "modernc.org/sqlite"
 )
 
+const productCols = `id,brand,product_line,material,bambu_preset_id,notes,created_at`
+
 type Store struct {
 	DB      *sql.DB
 	DataDir string
@@ -390,7 +392,7 @@ const (
 )
 
 func (s *Store) ListProducts() ([]Product, error) {
-	rows, err := s.DB.Query(`SELECT id,brand,product_line,material,notes,created_at FROM products ORDER BY created_at DESC`)
+	rows, err := s.DB.Query(`SELECT ` + productCols + ` FROM products ORDER BY created_at DESC`)
 	if err != nil {
 		return nil, err
 	}
@@ -418,7 +420,7 @@ func (s *Store) ListProducts() ([]Product, error) {
 
 func (s *Store) GetProduct(id string) (Product, error) {
 	var p Product
-	err := s.DB.QueryRow(`SELECT id,brand,product_line,material,notes,created_at FROM products WHERE id=?`, id).
+	err := s.DB.QueryRow(`SELECT `+productCols+` FROM products WHERE id=?`, id).
 		Scan(&p.ID, &p.Brand, &p.ProductLine, &p.Material, &p.BambuPresetID, &p.Notes, &p.CreatedAt)
 	if err != nil {
 		return p, err
@@ -433,11 +435,11 @@ func (s *Store) SaveProduct(p Product) (Product, error) {
 	if p.ID == "" {
 		p.ID = NewID()
 		p.CreatedAt = time.Now().UTC().Format(time.RFC3339)
-		_, err := s.DB.Exec(`INSERT INTO products(id,brand,product_line,material,notes,created_at) VALUES(?,?,?,?,?,?)`,
+		_, err := s.DB.Exec(`INSERT INTO products(`+productCols+`) VALUES(?,?,?,?,?,?,?)`,
 			p.ID, p.Brand, p.ProductLine, p.Material, p.BambuPresetID, p.Notes, p.CreatedAt)
 		return p, err
 	}
-	_, err := s.DB.Exec(`UPDATE products SET brand=?,product_line=?,material=?,notes=? WHERE id=?`,
+	_, err := s.DB.Exec(`UPDATE products SET brand=?,product_line=?,material=?,bambu_preset_id=?,notes=? WHERE id=?`,
 		p.Brand, p.ProductLine, p.Material, p.BambuPresetID, p.Notes, p.ID)
 	return p, err
 }
