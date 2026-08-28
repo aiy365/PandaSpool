@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 💬 Discussions (Q&A, ideas, showcase)
+    url: https://github.com/aiy365/PandaSpool/discussions
+    about: Use GitHub Discussions for open-ended questions and community chat
+  - name: 📖 Documentation
+    url: https://github.com/aiy365/PandaSpool/tree/main/docs
+    about: Architecture, governance, and design notes live in `docs/`
