@@ -1483,7 +1483,19 @@ async function viewMachine() {
                rotWrapper.style.top = "0";
             }
             
-            window.__ez = new window.EZUIKit.EZUIKitPlayer({ id: "ezviz-sub", accessToken: cam.accessToken, url: cam.url, width: playerW, height: playerH });
+            window.__ez = new window.EZUIKit.EZUIKitPlayer({
+              id: "ezviz-sub",
+              accessToken: cam.accessToken,
+              url: cam.url,
+              width: playerW,
+              height: playerH,
+              audio: 0,
+              handleError: (e) => {
+                 console.error("EZUIKit error:", e);
+                 const msg = (e && e.data && e.data.msg) ? e.data.msg : JSON.stringify(e);
+                 toast("播放错误: " + msg, "error", { id: "mach" });
+              }
+            });
             
             playBtn.textContent = "▶ 播放";
             playBtn.disabled = false;
@@ -1651,6 +1663,7 @@ async function viewSettings(me) {
         ${field("Secret", inputEl("zs", `type="password" placeholder="不改请留空"`))}
         ${field("设备序列号", inputEl("zd", `value="${esc(s.ezviz.device_serial)}"`))}
         ${field("通道", inputEl("zc", `value="${esc(s.ezviz.channel)}"`))}
+        ${field("设备验证码", inputEl("zvc", `value="${esc(s.ezviz.verify_code || "")}" type="password" placeholder="设备底部的6位大写字母"`))}
         ${field("画面旋转", `<select id="zr" class="select select-bordered w-full">
           <option value="" ${!s.ezviz.rotation || s.ezviz.rotation === "" || s.ezviz.rotation === "0" ? "selected" : ""}>正常</option>
           <option value="90" ${s.ezviz.rotation === "90" ? "selected" : ""}>向右旋转 90°</option>
@@ -1712,7 +1725,7 @@ async function viewSettings(me) {
     bambu: { region: $("#br").value, account: $("#ba").value, password: $("#bp").value, printer_sn: $("#bsn").value },
     ewelink: { region: $("#er").value, account: $("#ea").value, password: $("#ep").value, app_id: $("#eid")?.value || "", app_secret: $("#es")?.value || "",
       light: $("#el").value, box_always: $("#eba").value, box_print: $("#ebp").value, room: $("#ero").value },
-    ezviz: { app_key: $("#zk").value, app_secret: $("#zs").value, device_serial: $("#zd").value, channel: $("#zc").value, rotation: $("#zr")?.value || "", crop: `${$("#zc_t")?.value||0},${$("#zc_b")?.value||0},${$("#zc_l")?.value||0},${$("#zc_r")?.value||0}` },
+    ezviz: { app_key: $("#zk").value, app_secret: $("#zs").value, device_serial: $("#zd").value, channel: $("#zc").value, verify_code: $("#zvc")?.value || "", rotation: $("#zr")?.value || "", crop: `${$("#zc_t")?.value||0},${$("#zc_b")?.value||0},${$("#zc_l")?.value||0},${$("#zc_r")?.value||0}` },
     air: { token: $("#at").value },
     ai: { token: $("#ait")?.value || "" },
     automations: { box_always_on: true, print_boost_minutes: Number($("#emin").value), room_on_presence: true, wecom_corpid: $("#wcCorp")?.value || "", wecom_secret: $("#wcSec")?.value || "", wecom_agentid: $("#wcAgent")?.value || "", wecom_aeskey: $("#wcAES")?.value || "", wecom_touser: $("#wcTo")?.value || "" },
