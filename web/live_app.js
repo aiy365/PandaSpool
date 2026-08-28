@@ -1483,19 +1483,9 @@ async function viewMachine() {
                rotWrapper.style.top = "0";
             }
             
-            window.__ez = new window.EZUIKit.EZUIKitPlayer({
-              id: "ezviz-sub",
-              accessToken: cam.accessToken,
-              url: cam.url,
-              width: playerW,
-              height: playerH,
-              audio: 0,
-              handleError: (e) => {
-                 console.error("EZUIKit error:", e);
-                 const msg = (e && e.data && e.data.msg) ? e.data.msg : JSON.stringify(e);
-                 toast("播放错误: " + msg, "error", { id: "mach" });
-              }
-            });
+            const iframeSrc = `https://open.ys7.com/ezopen/h5/iframe?url=${encodeURIComponent(cam.url)}&accessToken=${encodeURIComponent(cam.accessToken)}&autoplay=1&audio=0`;
+            $("#ezviz-sub").innerHTML = `<iframe src="${iframeSrc}" width="100%" height="100%" frameborder="0" allowfullscreen></iframe>`;
+            window.__ez = { stop: () => { $("#ezviz-sub").innerHTML = ""; } };
             
             playBtn.textContent = "▶ 播放";
             playBtn.disabled = false;

@@ -278,7 +278,7 @@ func (s *Store) SaveSettings(in Settings) error {
 	if in.Ezviz.AppSecret == "" {
 		in.Ezviz.AppSecret = cur.Ezviz.AppSecret
 	}
-	if in.Ezviz.VerifyCode == "" {
+	if in.Ezviz.VerifyCode == "" || in.Ezviz.VerifyCode == "********" {
 		in.Ezviz.VerifyCode = cur.Ezviz.VerifyCode
 	}
 	if in.Automations.WeComSecret == "" {
