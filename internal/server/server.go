@@ -191,7 +191,12 @@ func (s *Server) health(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) bootstrap(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte(`{"ready":` + fmt.Sprintf("%v", s.st.HasAdmin()) + `}`))
+	cfg := s.st.LoadSettings()
+	title := cfg.Site.Title
+	if title == "" {
+		title = "PandaSpool"
+	}
+	w.Write([]byte(`{"ready":` + fmt.Sprintf("%v", s.st.HasAdmin()) + `,"site":{"title":"` + title + `"}}`))
 }
 
 func (s *Server) setup(w http.ResponseWriter, r *http.Request) {
