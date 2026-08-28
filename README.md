@@ -1,8 +1,29 @@
+<!-- SEO: PandaSpool · 拓竹 Bambu Lab 3D 打印机生态 · 自托管耗材与机箱中控 · 第三方耗材编号 · 机箱环境监控 · Go monorepo · MQTT · eWeLink · 萤石 -->
+
 # PandaSpool 🐼🛠️
 
-![Bambu Lab](https://img.shields.io/badge/Ecosystem-Bambu%20Lab-00AE42.svg)
-![Go](https://img.shields.io/badge/Backend-Go-00ADD8.svg)
-![SQLite](https://img.shields.io/badge/Database-SQLite-003B57.svg)
+<p align="center">
+  <b>拓竹 Bambu Lab 3D 打印机生态的自托管中控:第三方耗材编号 / 机箱环境监控 / 耗材研发一体化,Go 后端 monorepo。</b>
+</p>
+
+<p align="center">
+  <a href="https://github.com/aiy365/PandaSpool/blob/main/LICENSE"><img src="https://img.shields.io/github/license/aiy365/PandaSpool?style=flat-square" alt="License: MIT"/></a>
+  <a href="https://github.com/aiy365/PandaSpool/releases"><img src="https://img.shields.io/github/v/release/aiy365/PandaSpool?style=flat-square" alt="Latest Release"/></a>
+  <a href="https://github.com/aiy365/PandaSpool/stargazers"><img src="https://img.shields.io/github/stars/aiy365/PandaSpool?style=flat-square" alt="Stars"/></a>
+  <a href="https://github.com/aiy365/PandaSpool/network/members"><img src="https://img.shields.io/github/forks/aiy365/PandaSpool?style=flat-square" alt="Forks"/></a>
+  <a href="https://github.com/aiy365/PandaSpool/issues"><img src="https://img.shields.io/github/issues/aiy365/PandaSpool?style=flat-square" alt="Issues"/></a>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Bambu_Lab-3D_Printer-00AE42?style=flat-square&logo=anycubic&logoColor=white" alt="Bambu Lab"/>
+  <img src="https://img.shields.io/badge/Backend-Go_1.22+-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go 1.22+"/>
+  <img src="https://img.shields.io/badge/Database-SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite"/>
+  <img src="https://img.shields.io/badge/IoT-MQTT-660066?style=flat-square&logo=mqtt&logoColor=white" alt="MQTT"/>
+  <img src="https://img.shields.io/badge/Relay-eWeLink-FF6F00?style=flat-square" alt="eWeLink"/>
+  <img src="https://img.shields.io/badge/Frontend-WebGL-990000?style=flat-square&logo=three.js&logoColor=white" alt="WebGL"/>
+  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT"/>
+  <img src="https://img.shields.io/badge/Status-Active_Development-brightgreen?style=flat-square" alt="Active"/>
+</p>
 
 *( [Read in English](#english) | [中文说明往下看](#chinese) )*
 
