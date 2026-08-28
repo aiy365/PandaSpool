@@ -855,10 +855,11 @@ async function viewMaterials() {
 
 async function viewProduct(id) {
     pageLoading("正在打开产品…");
-    let p, allClaims;
+    let p, allClaims, data;
     try {
       p = await api("/api/products/" + id);
       allClaims = await api("/api/claims?product_id=" + id);
+      data = p;
     } catch (ex) { pageError(ex); return; }
     const drafts = (allClaims || []).filter(c => c.status === "draft");
     const claims = (allClaims || []).filter(c => c.status !== "draft");
