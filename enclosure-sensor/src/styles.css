@@ -1,0 +1,48 @@
+:root {
+  --bg: #12151a;
+  --card: rgba(18, 22, 28, 0.78);
+  --line: rgba(255, 255, 255, 0.12);
+  --text: #eef2f6;
+  --muted: #9aa7b5;
+  --accent: #3dd6c6;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; font-family: "Segoe UI", "PingFang SC", "Noto Sans SC", sans-serif; background: var(--bg); color: var(--text); }
+#app, #scene { width: 100%; height: 100%; display: block; }
+
+.title-card, .reference-card, .view-controls, .dock {
+  position: absolute;
+  backdrop-filter: blur(14px);
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  z-index: 2;
+}
+.title-card { left: 20px; top: 20px; width: min(420px, calc(100vw - 40px)); padding: 16px 18px; }
+.eyebrow { margin: 0 0 6px; letter-spacing: 0.14em; font-size: 11px; color: var(--accent); }
+.title-card h1 { margin: 0 0 8px; font-size: 22px; font-weight: 650; }
+.title-card p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+
+.reference-card { right: 20px; top: 20px; width: 240px; padding: 12px; }
+.reference-heading { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 8px; color: var(--muted); }
+.status-dot { color: var(--accent); }
+.reference-card img { width: 100%; border-radius: 8px; display: block; }
+.reference-card ul { margin: 8px 0 0; padding-left: 16px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+
+.view-controls { left: 20px; bottom: 88px; display: flex; gap: 6px; padding: 8px; }
+.view-controls button {
+  border: 0; background: transparent; color: var(--text); padding: 8px 12px; border-radius: 9px; cursor: pointer;
+}
+.view-controls button.active { background: #1e3d3a; color: var(--accent); }
+
+.dock {
+  left: 20px; right: 20px; bottom: 20px; display: flex; gap: 18px; align-items: center;
+  padding: 10px 16px; font-size: 13px; flex-wrap: wrap;
+}
+.dock label { display: flex; gap: 8px; align-items: center; color: var(--muted); }
+.picked { margin-left: auto; color: var(--accent); }
+
+@media (max-width: 820px) {
+  .reference-card { display: none; }
+  .title-card { width: calc(100vw - 40px); }
+}

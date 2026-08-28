@@ -1,0 +1,16 @@
+{
+  "version": 2,
+  "dgSpecHash": "jj9xBQRcXfo=",
+  "success": true,
+  "projectFilePath": "C:\\work\\3D模型\\printpilot-desk\\src\\PrintPilotDesk.csproj",
+  "expectedPackageFiles": [
+    "C:\\Users\\user\\.nuget\\packages\\h.generatedicons.system.drawing\\2.4.1\\h.generatedicons.system.drawing.2.4.1.nupkg.sha512",
+    "C:\\Users\\user\\.nuget\\packages\\h.notifyicon\\2.4.1\\h.notifyicon.2.4.1.nupkg.sha512",
+    "C:\\Users\\user\\.nuget\\packages\\h.notifyicon.wpf\\2.4.1\\h.notifyicon.wpf.2.4.1.nupkg.sha512",
+    "C:\\Users\\user\\.nuget\\packages\\microsoft.net.illink.tasks\\10.0.10\\microsoft.net.illink.tasks.10.0.10.nupkg.sha512",
+    "C:\\Users\\user\\.nuget\\packages\\microsoft.netcore.app.runtime.win-x64\\10.0.10\\microsoft.netcore.app.runtime.win-x64.10.0.10.nupkg.sha512",
+    "C:\\Users\\user\\.nuget\\packages\\microsoft.windowsdesktop.app.runtime.win-x64\\10.0.10\\microsoft.windowsdesktop.app.runtime.win-x64.10.0.10.nupkg.sha512",
+    "C:\\Users\\user\\.nuget\\packages\\microsoft.aspnetcore.app.runtime.win-x64\\10.0.10\\microsoft.aspnetcore.app.runtime.win-x64.10.0.10.nupkg.sha512"
+  ],
+  "logs": []
+}

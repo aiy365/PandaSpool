@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "printpilot-material-lab"
+version = "0.1.0"
+description = "Evidence-backed filament archive and Bambu Studio profile compiler"
+readme = "README.md"
+license = "MIT"
+authors = [{name = "aiy365"}]
+requires-python = ">=3.11"
+dependencies = ["pypdf>=5,<7"]
+keywords = [
+  "3d-printing",
+  "bambu-studio",
+  "filament-profile",
+  "sqlite",
+  "agent-skill",
+]
+
+[project.optional-dependencies]
+test = ["pytest>=8,<9"]
+
+[project.scripts]
+printpilot-material = "printpilot_material_lab.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+printpilot_material_lab = ["dashboard_dist/**/*", "sqlite_migrations/*.sql"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
