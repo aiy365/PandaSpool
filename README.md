@@ -23,6 +23,12 @@ Say goodbye to generic spool names and "Unsupported Filament" errors in Bambu St
   - `enclosure-sensor/`: 3D WebGL dashboard for monitoring printer enclosure temperature and humidity.
   - `material-lab/`: Data analytics and telemetry for filament calibration and testing.
 
+### 🌪️ Smart IoT & Environmental Control
+PandaSpool goes beyond just filament tracking—it is a full-fledged smart enclosure controller:
+- **eWeLink (易微联) Smart Relay Integration**: Natively controls dual-channel air purifiers/exhaust fans. It automatically manages VOCs and fumes when printing toxic materials (like ABS/ASA).
+- **Ezviz (萤石) Camera Integration**: Seamlessly integrates cloud cameras for remote print monitoring.
+- **3D Digital Twin**: The `enclosure-sensor` module provides a WebGL-based real-time 3D dashboard displaying in-enclosure temperature, humidity, and environmental telemetry.
+
 ### 🤖 AI-Native Engineering & Human-AI Collaboration
 PandaSpool is a proud product of **Human-AI Pair Programming**. 
 - **"Talk to Deploy"**: Built entirely through continuous dialogue with advanced AI agents. The user defines the physical pain points (e.g., "Bambu Studio says the filament is unsupported"), and the AI diagnoses the cloud UUID mismatches, rewrites the Go logic, and deploys it live to the server in minutes.
@@ -64,6 +70,12 @@ GOOS=linux GOARCH=amd64 go build -o pandaspool ./cmd/pandaspool
 * **`desk/`**：桌面端常驻辅助挂件 (Desktop Companion)。
 * **`enclosure-sensor/`**：基于 3D WebGL 的打印机封箱环境（温湿度）监控看板 (Enclosure Telemetry Dashboard)。
 * **`material-lab/`**：耗材极限测试与参数调优的数据分析看板 (Material Analytics Lab)。
+
+### 🌪️ 智能 IoT 与环境中控 (Smart IoT & Environment Control)
+PandaSpool 不仅仅是一个耗材库，它更是你的硬核打印机中控台，**原生自带**强大的智能家居与环境联动能力：
+- **易微联 (eWeLink) 深度接入**：原生支持智能继电器，精准控制 **2 路空气净化器 / 抽风排气系统**。打印 ABS/ASA 等高温毒气材料时，系统自动接管环境净化，保护创客健康。
+- **萤石 (Ezviz) 监控联动**：无缝接入萤石云摄像头，实时串流掌控打印机舱内画面。
+- **3D 数字孪生封箱监控**：内置 `enclosure-sensor` 模块，通过精美的 3D WebGL 界面，实时透视打印机封箱内的温湿度与环境传感数据，极具赛博朋克感。
 
 ### 🤖 AI 原生工程与人机协同 (Human-AI Collaboration)
 PandaSpool 是 **AI 与人类结对编程 (Pair Programming)** 的极佳范例。本项目在开发过程中，深度践行了 AI 原生工程理念：
