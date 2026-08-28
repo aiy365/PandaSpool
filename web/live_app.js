@@ -1278,6 +1278,7 @@ async function viewMachine() {
     let d;
     try { d = await api("/api/machine"); }
     catch (ex) { toast(ex.message, "error", { id: "mach" }); if (!$("#mach")) pageError(ex); return; }
+    try { spools = await api("/api/spools"); } catch(e) {}
     ensureShell();
     const b = d.bambu || {};
     const air = d.air || {};
@@ -1377,15 +1378,65 @@ async function viewMachine() {
           const tn = String(b.tray_now);
           if (tn === "254" && b.vt_tray) {
              const col = (b.vt_tray.tray_color || "888888").substring(0,6);
-             const safeHex = /^[0-9a-fA-F]{6}$/.test(String(col ?? "")) ? col : "888888";
-      filamentStr = `　<span class="badge badge-outline text-xs border-[color:#${safeHex}]">料架: [${esc(getColorName(col))}] ${esc(getBrand(b.vt_tray))}</span>`;
+               const safeHex = /^[0-9a-fA-F]{6}$/.test(String(col ?? "")) ? col : "888888";
+               const trayType = (b.vt_tray.tray_type || "").toLowerCase();
+               
+               let closestSpool = null;
+               let minDist = Infinity;
+               const cR = parseInt(col.substring(0,2)||'88', 16), cG = parseInt(col.substring(2,4)||'88', 16), cB = parseInt(col.substring(4,6)||'88', 16);
+               for (const sp of (spools || [])) {
+                  if (sp.status !== "opened") continue;
+                  // Calculate distance
+                  const spColor = sp.color_hex || "888888";
+                  const sR = parseInt(spColor.substring(0,2)||'88', 16), sG = parseInt(spColor.substring(2,4)||'88', 16), sB = parseInt(spColor.substring(4,6)||'88', 16);
+                  let dist = (cR-sR)**2 + (cG-sG)**2 + (cB-sB)**2;
+                  
+                  // if material matches, prioritize it heavily
+                  const mType = (sp.bambu_filament_name || "").toLowerCase();
+                  if (trayType && mType.includes(trayType)) {
+                     dist -= 20000;
+                  }
+                  
+                  if (dist < minDist) {
+                     minDist = dist;
+                     closestSpool = sp;
+                  }
+               }
+               
+               if (closestSpool && minDist < 20000) { // allows slightly fuzzy matches if material matches well
+                  const fname = closestSpool.bambu_filament_name || getColorName(closestSpool.color_id);
+                  filamentStr = `　<span class="badge badge-outline text-xs border-[color:#${safeHex}]">料架: [${esc(closestSpool.short_code)}] ${esc(fname)}</span>`;
+               } else {
+                  filamentStr = `　<span class="badge badge-outline text-xs border-[color:#${safeHex}]">料架: [${esc(getColorName(col))}] ${esc(getBrand(b.vt_tray))}</span>`;
+               }
           } else if (b.ams?.ams?.length > 0) {
              for (const a of b.ams.ams) {
                 if (a.tray) {
                    for (const t of a.tray) {
                       if (String(t.id) === tn) {
                          const col = (t.tray_color || "888888").substring(0,6);
-                         filamentStr = `　<span class="badge badge-outline text-xs border-[color:#${col}]">AMS-${tn}: [${getColorName(col)}] ${esc(getBrand(t))}</span>`;
+                           const trayType = (t.tray_type || "").toLowerCase();
+                           
+                           let closestSpool = null;
+                           let minDist = Infinity;
+                           const cR = parseInt(col.substring(0,2)||'88', 16), cG = parseInt(col.substring(2,4)||'88', 16), cB = parseInt(col.substring(4,6)||'88', 16);
+                           for (const sp of (spools || [])) {
+                              if (sp.status !== "opened") continue;
+                              const spColor = sp.color_hex || "888888";
+                              const sR = parseInt(spColor.substring(0,2)||'88', 16), sG = parseInt(spColor.substring(2,4)||'88', 16), sB = parseInt(spColor.substring(4,6)||'88', 16);
+                              let dist = (cR-sR)**2 + (cG-sG)**2 + (cB-sB)**2;
+                              const mType = (sp.bambu_filament_name || "").toLowerCase();
+                              if (trayType && mType.includes(trayType)) { dist -= 20000; }
+                              
+                              if (dist < minDist) { minDist = dist; closestSpool = sp; }
+                           }
+                           
+                           if (closestSpool && minDist < 20000) {
+                              const fname = closestSpool.bambu_filament_name || getColorName(closestSpool.color_id);
+                              filamentStr = `　<span class="badge badge-outline text-xs border-[color:#${col}]">AMS-${tn}: [${esc(closestSpool.short_code)}] ${esc(fname)}</span>`;
+                           } else {
+                              filamentStr = `　<span class="badge badge-outline text-xs border-[color:#${col}]">AMS-${tn}: [${getColorName(col)}] ${esc(getBrand(t))}</span>`;
+                           }
                       }
                    }
                 }
