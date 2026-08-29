@@ -61,6 +61,14 @@ func New(dataDir, listen string) (*Server, error) {
 		cfg.EWeLink.RefreshToken = rt
 		_ = s.st.SaveSettings(cfg)
 	})
+	// 萤石同理：token 落库。萤石每次发新 token 会作废旧 token，
+	// 每次重启都重新获取会让正在播放的页面黑屏；持久化后只在真正过期时才换新。
+	s.ez.OnTokenRefresh(func(at string, expireAt time.Time) {
+		cfg := s.st.LoadSettings()
+		cfg.Ezviz.AccessToken = at
+		cfg.Ezviz.TokenExpireAt = expireAt.UnixMilli()
+		_ = s.st.SaveSettings(cfg)
+	})
 	s.Addr = listen
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/wecom/verify", s.verifyWeCom)
@@ -1052,17 +1060,20 @@ func (s *Server) actuator(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) camera(w http.ResponseWriter, r *http.Request) {
 	cfg := s.st.LoadSettings()
-	token, err := s.ez.AccessToken()
-	if err != nil {
-		http.Error(w, err.Error(), 500)
-		return
-	}
 	channel := cfg.Ezviz.Channel
 	if channel == "" {
 		channel = "1"
 	}
+	// EnsureToken 遇到平台作废旧 token（10002）会自动换新一次；设备未加密时
+	// 不带验证码（未加密设备带验证码会导致黑屏）。
+	token, info, err := s.ez.EnsureToken(cfg.Ezviz.DeviceSerial)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
 	urlStr := fmt.Sprintf("ezopen://open.ys7.com/%s/%s.hd.live", cfg.Ezviz.DeviceSerial, channel)
-	if cfg.Ezviz.VerifyCode != "" {
+	encrypted := info != nil && info.IsEncrypt == 1
+	if (encrypted || info == nil) && cfg.Ezviz.VerifyCode != "" {
 		urlStr = fmt.Sprintf("ezopen://%s@open.ys7.com/%s/%s.hd.live", cfg.Ezviz.VerifyCode, cfg.Ezviz.DeviceSerial, channel)
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -1154,6 +1165,7 @@ func (s *Server) applyIntegrations() {
 		RefreshToken: cfg.EWeLink.RefreshToken,
 	})
 	s.ez.Configure(cfg.Ezviz.AppKey, cfg.Ezviz.AppSecret)
+	s.ez.SetSeed(cfg.Ezviz.AccessToken, time.UnixMilli(cfg.Ezviz.TokenExpireAt))
 }
 
 // automate 每 10 秒巡检一次。开关命令只在目标状态和上次下发不一致时才发，
