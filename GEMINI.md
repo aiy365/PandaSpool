@@ -13,10 +13,10 @@
 - **Modals & Prompts**: Never use browser native `prompt()` or `confirm()`. Use DaisyUI `<dialog class="modal">` components for data intake and dangerous action confirmations.
 
 ## 3. Deployment Workflow (WSL Environment)
-- **Use WSL**: All build and deployment commands MUST be executed inside the `PandaSpool-Dev` WSL distribution, leveraging the project's root path `/mnt/c/work/3D模型/printpilot-hub`.
+- **Use WSL**: All build and deployment commands MUST be executed inside the `PrintPilot-Dev` WSL distribution, leveraging the project's root path `/mnt/c/work/3D模型/printpilot-hub`.
 - **Workflow**:
   ```bash
-  # Execute inside WSL: wsl -d PandaSpool-Dev -e bash -c 'export PATH=$PATH:/usr/local/go/bin && cd /mnt/c/work/3D模型/printpilot-hub && ...'
+  # Execute inside WSL: wsl -d PrintPilot-Dev -e bash -c 'export PATH=$PATH:/usr/local/go/bin && cd /mnt/c/work/3D模型/printpilot-hub && ...'
 
   # 1. Build for Linux (Native in WSL)
   GOOS=linux GOARCH=amd64 go build -o printpilot-linux-amd64 ./cmd/pandaspool
