@@ -35,7 +35,11 @@ type Server struct {
 	lastOn map[string]bool
 
 	notifiedPrintEnd time.Time
-	notifiedLayer1   bool
+	// 首层提醒的任务感知状态：只有亲眼见过当前任务的第 0/1 层才会在
+	// 第 2 层以后提醒，重启不会把进行中的任务误报成首层完成。
+	lastJob         string
+	layer1Seen      bool
+	layer1Notified  bool
 }
 
 func New(dataDir, listen string) (*Server, error) {
@@ -96,6 +100,7 @@ func New(dataDir, listen string) (*Server, error) {
 	mux.HandleFunc("/api/settings/test/ewelink", s.auth(s.testEWeLink))
 	mux.HandleFunc("/api/settings/ewelink/token", s.auth(s.ewelinkToken))
 	mux.HandleFunc("/api/settings/test/ezviz", s.auth(s.testEzviz))
+	mux.HandleFunc("/api/settings/test/wecom", s.auth(s.testWeCom))
 	mux.HandleFunc("/api/ewelink/devices", s.auth(s.ewDevices))
 	mux.HandleFunc("/api/ewelink/switch", s.auth(s.ewSwitch))
 	mux.HandleFunc("/api/products", s.auth(s.products))
@@ -1139,7 +1144,46 @@ func (s *Server) ingestAir(w http.ResponseWriter, r *http.Request) {
 
 // ---- 通知 ----
 
+// weComAccessToken 校验企业微信凭证并取 access_token；配置缺失或凭证无效都返回错误。
+func (s *Server) weComAccessToken(cfg store.Settings) (string, error) {
+	corp, secret := cfg.Automations.WeComCorpID, cfg.Automations.WeComSecret
+	if corp == "" || secret == "" {
+		return "", fmt.Errorf("企业ID或应用Secret还没填")
+	}
+	res, err := http.Get(fmt.Sprintf("https://qyapi.weixin.qq.com/cgi-bin/gettoken?corpid=%s&corpsecret=%s", corp, secret))
+	if err != nil {
+		return "", fmt.Errorf("连不上企业微信: %v", err)
+	}
+	defer res.Body.Close()
+	raw, _ := io.ReadAll(res.Body)
+	var parsed struct {
+		AccessToken string `json:"access_token"`
+		ErrCode     int    `json:"errcode"`
+		ErrMsg      string `json:"errmsg"`
+	}
+	_ = json.Unmarshal(raw, &parsed)
+	if parsed.AccessToken == "" {
+		return "", fmt.Errorf("企业微信凭证无效(%d): %s", parsed.ErrCode, parsed.ErrMsg)
+	}
+	return parsed.AccessToken, nil
+}
+
+// testWeCom 只验证凭证，不发消息。保存通知设置后用它给出明确反馈。
+func (s *Server) testWeCom(w http.ResponseWriter, r *http.Request) {
+	if _, err := s.weComAccessToken(s.st.LoadSettings()); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Write([]byte(`{"ok":true,"hint":"企业微信凭证验证通过"}`))
+}
+
 func (s *Server) testNotify(w http.ResponseWriter, r *http.Request) {
+	// 先同步验证凭证：配置坏了当场报错，按钮立刻能看到原因。
+	if _, err := s.weComAccessToken(s.st.LoadSettings()); err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 	st := s.bambu.Status()
 	if st["gcode_state"] == nil {
 		st["gcode_state"] = "TEST_RUNNING"
@@ -1155,7 +1199,14 @@ func (s *Server) testNotify(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) static() http.HandlerFunc {
 	dir, _ := fs.Sub(web.FS, "dist")
-	return http.FileServer(http.FS(dir)).ServeHTTP
+	fileServer := http.FileServer(http.FS(dir))
+	return func(w http.ResponseWriter, r *http.Request) {
+		// index.html 不缓存：缓存号 ?v=N 升级后浏览器立刻拿到新引用。
+		if r.URL.Path == "/" || r.URL.Path == "/index.html" {
+			w.Header().Set("Cache-Control", "no-cache")
+		}
+		fileServer.ServeHTTP(w, r)
+	}
 }
 
 func (s *Server) applyIntegrations() {

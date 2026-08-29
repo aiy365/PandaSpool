@@ -24,10 +24,8 @@ applyTheme(currentTheme());
 function updateAppTitle(title) {
   const displayTitle = title || "PandaSpool";
   document.title = displayTitle;
-  const brandEl = document.querySelector(".navbar-center .btn-ghost");
+  const brandEl = document.getElementById("brand");
   if (brandEl) brandEl.innerText = displayTitle;
-  const brandMobileEl = document.querySelector(".drawer-side .text-2xl");
-  if (brandMobileEl) brandMobileEl.innerText = displayTitle;
 }
 async function api(path, opts = {}) {
   const res = await fetch(path, {
@@ -260,7 +258,7 @@ function renderApp(me) {
         </ul>
       </div>
       
-      <span class="btn btn-ghost text-lg text-primary">${esc(me.title || "PandaSpool")}</span>
+      <span class="btn btn-ghost text-lg text-primary" id="brand">${esc(me.title || "PandaSpool")}</span>
       
       <!-- Desktop Nav -->
       <nav class="menu menu-horizontal px-1 nav-desktop">
@@ -1339,19 +1337,37 @@ async function viewMachine() {
           return [parseInt(s.substring(0, 2), 16), parseInt(s.substring(2, 4), 16), parseInt(s.substring(4, 6), 16)];
         };
         const getColorName = (hex) => {
+          // 按 HSL 色相命名；16 色调色板会把 A03CF7 这类紫色误判成浅灰。
           const [r, g, b] = rgbOf(hex);
-          const colors = [
-            {n:"白色",r:255,g:255,b:255}, {n:"黑色",r:0,g:0,b:0}, {n:"深灰",r:64,g:64,b:64}, {n:"浅灰",r:160,g:160,b:160},
-            {n:"红色",r:255,g:0,b:0}, {n:"绿色",r:0,g:200,b:0}, {n:"蓝色",r:0,g:0,b:255}, {n:"黄色",r:255,g:255,b:0},
-            {n:"橙色",r:255,g:128,b:0}, {n:"紫色",r:128,g:0,b:128}, {n:"粉色",r:255,g:192,b:203}, {n:"棕色",r:139,g:69,b:19},
-            {n:"青色",r:0,g:255,b:255}, {n:"金色",r:218,g:165,b:32}, {n:"银色",r:192,g:192,b:192}, {n:"骨色/原色",r:227,g:218,b:201}
-          ];
-          let minDist = Infinity, closest = "未知";
-          for (const c of colors) {
-            const dist = (r-c.r)**2 + (g-c.g)**2 + (b-c.b)**2;
-            if (dist < minDist) { minDist = dist; closest = c.n; }
+          const max = Math.max(r, g, b), min = Math.min(r, g, b);
+          const d = max - min;
+          const s = max === 0 ? 0 : d / max;
+          const lum = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+          if (s < 0.14) {
+            if (lum > 0.85) return "白色";
+            if (lum > 0.62) return "浅灰";
+            if (lum > 0.3) return "灰色";
+            if (lum > 0.12) return "深灰";
+            return "黑色";
           }
-          return closest;
+          let h = 0;
+          if (d !== 0) {
+            if (max === r) h = ((g - b) / d) % 6;
+            else if (max === g) h = (b - r) / d + 2;
+            else h = (r - g) / d + 4;
+            h = Math.round(h * 60);
+            if (h < 0) h += 360;
+          }
+          const pre = lum > 0.72 ? "浅" : (lum < 0.3 ? "深" : "");
+          if (h < 14 || h >= 345) return pre + "红色";
+          if (h < 40) return pre + "橙色";
+          if (h < 68) return pre + "黄色";
+          if (h < 95) return "黄绿色";
+          if (h < 160) return pre + "绿色";
+          if (h < 200) return pre + "青色";
+          if (h < 255) return pre + "蓝色";
+          if (h < 292) return pre + "紫色";
+          return pre + "玫红色";
         };
         // 拓竹闲置时外部料架会占位上报 #A0A0A0 一类的灰，不能当成真实耗材。
         const isPlaceholderGray = (hex) => {
@@ -1751,14 +1767,25 @@ async function viewSettings(me) {
   });
   const saveSite = async () => {
     await api("/api/settings", { method: "PUT", body: collect() });
-    alert("保存成功!");
+    updateAppTitle($("#st").value.trim());
+    toast("设置已保存", "success", { id: "set" });
   };
-  $("#testwh")?.addEventListener("click", async (e) => {
-    busy(e.currentTarget, async () => {
-      await api("/api/notify/test", { method: "POST" });
-      alert("测试推送指令已下发！请去手机上查看是否收到通知。\n注意：需要先点击左侧的【保存通知设置】！");
-    }, "send");
-  });
+  $("#ssite").onclick = (e) => busy(e.currentTarget, async () => {
+    const title = $("#st").value.trim() || "PandaSpool";
+    await api("/api/settings", { method: "PUT", body: { ...collect(), site: { title } } });
+    updateAppTitle(title);
+    toast("站点名称已生效", "success", { id: "set" });
+  }, "set");
+  $("#savewh").onclick = (e) => busy(e.currentTarget, async () => {
+    await api("/api/settings", { method: "PUT", body: collect() });
+    const d = await api("/api/settings/test/wecom", { method: "POST", body: {} });
+    toast(d.hint || "已保存", "success", { id: "set" });
+  }, "set");
+  $("#testwh").onclick = (e) => busy(e.currentTarget, async () => {
+    await api("/api/settings", { method: "PUT", body: collect() });
+    await api("/api/notify/test", { method: "POST" });
+    toast("测试推送已下发，请看手机企业微信", "success", { id: "set" });
+  }, "set");
   $("#sa").onclick = (e) => busy(e.currentTarget, saveSite, "set");
   $("#spw").onclick = (e) => busy(e.currentTarget, async () => {
     await api("/api/settings/password", { method: "POST", body: { username: $("#su").value, old_password: $("#so").value, new_password: $("#sn").value } });
