@@ -1,112 +1,142 @@
-<!-- SEO: PandaSpool · 拓竹 Bambu Lab 3D 打印机生态 · 自托管耗材与机箱中控 · 第三方耗材编号 · 机箱环境监控 · Go monorepo · MQTT · eWeLink · 萤石 -->
+<div align="center">
 
-# PandaSpool 🐼🛠️
+# PandaSpool 🐼
 
-<p align="center">
-  <b>拓竹 Bambu Lab 3D 打印机生态的自托管中控:第三方耗材编号 / 机箱环境监控 / 耗材研发一体化,Go 后端 monorepo。</b>
-</p>
+**拓竹 Bambu Lab 3D 打印机的自托管中控：打印机监控 · 物理料盘管理 · 环境联动 · 耗材档案**
 
-<p align="center">
-  <a href="https://github.com/aiy365/PandaSpool/blob/main/LICENSE"><img src="https://img.shields.io/github/license/aiy365/PandaSpool?style=flat-square" alt="License: MIT"/></a>
-  <a href="https://github.com/aiy365/PandaSpool/releases"><img src="https://img.shields.io/github/v/release/aiy365/PandaSpool?style=flat-square" alt="Latest Release"/></a>
-  <a href="https://github.com/aiy365/PandaSpool/stargazers"><img src="https://img.shields.io/github/stars/aiy365/PandaSpool?style=flat-square" alt="Stars"/></a>
-  <a href="https://github.com/aiy365/PandaSpool/network/members"><img src="https://img.shields.io/github/forks/aiy365/PandaSpool?style=flat-square" alt="Forks"/></a>
-  <a href="https://github.com/aiy365/PandaSpool/issues"><img src="https://img.shields.io/github/issues/aiy365/PandaSpool?style=flat-square" alt="Issues"/></a>
-</p>
+一个 Go 单二进制，把打印机、摄像头、智能插座和耗材库存装进同一个网页。
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Bambu_Lab-3D_Printer-00AE42?style=flat-square&logo=anycubic&logoColor=white" alt="Bambu Lab"/>
-  <img src="https://img.shields.io/badge/Backend-Go_1.22+-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go 1.22+"/>
-  <img src="https://img.shields.io/badge/Database-SQLite-003B57?style=flat-square&logo=sqlite&logoColor=white" alt="SQLite"/>
-  <img src="https://img.shields.io/badge/IoT-MQTT-660066?style=flat-square&logo=mqtt&logoColor=white" alt="MQTT"/>
-  <img src="https://img.shields.io/badge/Relay-eWeLink-FF6F00?style=flat-square" alt="eWeLink"/>
-  <img src="https://img.shields.io/badge/Frontend-WebGL-990000?style=flat-square&logo=three.js&logoColor=white" alt="WebGL"/>
-  <img src="https://img.shields.io/badge/License-MIT-green?style=flat-square" alt="MIT"/>
-  <img src="https://img.shields.io/badge/Status-Active_Development-brightgreen?style=flat-square" alt="Active"/>
-</p>
+[![Release](https://img.shields.io/github/v/release/aiy365/PandaSpool?style=flat-square)](https://github.com/aiy365/PandaSpool/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
+[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://sqlite.org)
+[![Bambu Lab](https://img.shields.io/badge/Bambu_Lab-MQTT-00AE42?style=flat-square)](https://bambulab.com)
 
-*( [Read in English](#english) | [中文说明往下看](#chinese) )*
+*[English](#english) · [中文](#中文)*
 
-<a id="english"></a>
-## 🇬🇧 English
-
-**PandaSpool** is the ultimate self-hosted Filament Inventory and Enclosure Management Hub, born to solve the most frustrating pain points of the Bambu Lab 3D printing ecosystem.
-
-### 💔 The Pain Points & 🐼 The PandaSpool Solutions
-
-**💣 Pain Point 1: The "Unsupported Filament" Nightmare**
-* **The Problem**: You spend hours tuning a custom preset for a third-party filament in Bambu Studio. But when you load the physical spool into your AMS via the Handy App, Bambu Studio stubbornly yells *"Unsupported Filament"* because the cloud UUIDs don't match.
-* **The Solution (True Preset Sync)**: PandaSpool directly hooks into the Bambu Cloud API to "steal" your exact Custom Preset UUIDs. When you intake a spool through PandaSpool, it binds the physical spool to your actual custom preset. Result? 100% perfect recognition in the AMS. Zero errors.
-
-**📦 Pain Point 2: The "Which White PLA is This?" Chaos**
-* **The Problem**: You have 30 spools on the shelf. Five of them are White PLA. Which one is loaded in Slot 3? You resort to messy sharpie marks that don't match the digital UI.
-* **The Solution (Smart Short Codes)**: Upon intake, PandaSpool generates an elegant, readable short code (e.g., `pt001`). More importantly, it **automatically injects this code into the Bambu Cloud Spool Note**. Print a physical label `pt001`, stick it on the spool, and your physical shelf perfectly matches your digital Bambu UI.
-
-**☠️ Pain Point 3: Toxic Fumes & Manual Fans**
-* **The Problem**: Printing ABS/ASA creates toxic VOCs. You have to manually turn on an external air purifier, and remember to turn it off 30 minutes after the print finishes.
-* **The Solution (Smart eWeLink Exhaust)**: Built-in eWeLink IoT integration. PandaSpool natively controls dual-channel smart relays for air purifiers and exhaust fans, automating environmental safety.
-
-**👁️ Pain Point 4: Blind Spots in the Enclosure**
-* **The Problem**: Juggling multiple apps just to check your printer's camera, enclosure temperature, and humidity.
-* **The Solution (3D Digital Twin & Ezviz)**: Seamlessly integrates Ezviz cloud cameras and features `enclosure-sensor`—a gorgeous 3D WebGL dashboard that displays real-time telemetry (temp/humidity) of your printer's enclosure.
-
-### 🤖 AI-Native Engineering
-PandaSpool was built using **Human-AI Pair Programming**. By simply describing business pain points ("Bambu Studio rejects my filament"), AI agents diagnosed undocumented cloud APIs, engineered the 3-way sync architecture, and deployed the Go backend in minutes—proving AI is now a full-stack co-architect.
-
-### 🚀 Getting Started
-```bash
-git clone https://github.com/aiy365/PandaSpool.git
-cd PandaSpool
-GOOS=linux GOARCH=amd64 go build -o pandaspool ./cmd/pandaspool
-./pandaspool
-```
-
-### ⚖️ Disclaimer & License
-PandaSpool is an independent open-source project and is **not** affiliated with Bambu Lab. (MIT License)
+</div>
 
 ---
 
-<a id="chinese"></a>
-## 🇨🇳 中文 (Chinese)
+<a id="中文"></a>
 
-**PandaSpool** 是专为拓竹 (Bambu Lab) 生态打造的终极私有化耗材与环境中控平台。它的诞生，是为了彻底消灭 3D 打印玩家在日常使用中最抓狂的四大痛点。
+## 这是什么
 
-### 💔 用户痛点与 🐼 PandaSpool 破局方案
+PandaSpool 面向 3D 打印农场和硬核玩家，解决几件拓竹生态里没人管好的事：
 
-**💣 痛点一：第三方耗材永远报“不支持的耗材”？**
-* **抓狂瞬间**：你花了一整晚在 Bambu Studio 调教 Polymaker 的参数并存为“自建预设”。结果把料盘塞进 AMS，手机 App 选完后，电脑端却无脑闪烁红字警告：“不支持的耗材 (Unsupported Filament)”。
-* **破局方案 (预设无缝级联)**：PandaSpool 打通了拓竹云底层接口，直接“偷取”你账号下真实的自定义切片预设 ID (Custom UUIDs)。以后只要在 PandaSpool 录入耗材，物理料盘与切片预设就能实现 100% 的完美底层绑定，插上 AMS 瞬间识别，再无报错。
+| 痛点 | PandaSpool 的做法 |
+|---|---|
+| 第三方料盘 AMS 识别混乱，实物和 App 对不上 | 入库时在**拓竹云端创建自定义耗材**、注入短编号备注。盘上写 `pm001`，云端和本站 1:1 对应；称重后余量同步云端 |
+| 30 卷白 PLA 分不清哪卷在哪 | 色系 × 材料的库存矩阵、未开封/开封台账、入库记账加权均价、参数横评（冲突并存不覆盖） |
+| 打 ABS 忘开净化器，打完忘关 | 易微联插座联动：打印自动开排风/净化，结束后延时关闭；状态变化才下发指令 |
+| 舱内情况要切三四个 App | 拓竹 MQTT 实时数据 + 萤石云直播同一页面；首层完成和打印结束自动截图推企业微信 |
+| 调好的参数散落在聊天记录里 | 产品/颜色/参数档案，支持 AI 起草 → 人工确认的治理流（AI 只能写草稿，不能改库存） |
 
-**📦 痛点二：30卷耗材，究竟哪个是哪个？**
-* **抓狂瞬间**：货架上有 5 卷白色的 PLA，AMS 里也显示白色 PLA。用到最后根本不知道对应哪一卷，只能用记号笔在盘子上乱涂乱画。
-* **破局方案 (短编号与云备注注入)**：入库时，系统会自动提取品牌与颜色的中英文首字母，生成极简短编号（如 `pt001`）。更绝的是，系统会**自动将该编号注入到拓竹云端料盘的备注 (Cloud Note) 中**。你只需用标签机打个 `pt001` 贴在实体盘上，实物与手机/PC 端的 UI 就实现了精密的“卡片级”对齐。
+## 功能一览
 
-**☠️ 痛点三：打 ABS/ASA 毒气弥漫，总是忘开净化器？**
-* **抓狂瞬间**：打高温毒气材料时，必须手动去开外置抽风机；打完了还要自己算时间去关，麻烦且伤身。
-* **破局方案 (易微联环境联动)**：系统原生接入易微联 (eWeLink) 智能继电器协议，直接接管 **2路空气净化 / 抽风排气系统**。伴随打印机状态，彻底实现有毒气体排出的自动化管理。
+- **机台监控**：喷嘴/热床温度、进度、层号、剩余时间、速度档、AMS 装载；自动识别外部料架的闲置占位报文，不误报耗材
+- **物理料盘**：快捷入库分配短编号 → 拓竹云端建档 → 记号笔写盘；称重同步、开封/用完状态流转、报废联动云端删除
+- **耗材档案**：品牌/系列/材质、色卡与在架库存、烘干/喷嘴/热床参数多来源并存、冲突提示、横评对比
+- **环境联动**：易微联继电器（多通道自动拆分）、打印加强延时、补光灯、车间有人感应
+- **监控**：萤石云 iframe 直播，画面旋转/裁切，验证码加密设备支持
+- **空气**：ESP32 探头上报 PM2.5/温湿度/人体存在，GB/T 18883 对照
+- **通知**：企业微信自建应用，首层完成 + 打印结束 10 分钟自动抓图推送
+- **AI 接口**：`GET /api/ai/materials` 只读全量档案，`POST /api/ai/drafts` 起草，`/llms.txt` 自述文档
 
-**👁️ 痛点四：机箱内部环境瞎子摸象？**
-* **抓狂瞬间**：看个监控要切萤石 App，看个舱内温湿度还要去瞟单独的温湿度计，极其割裂。
-* **破局方案 (萤石监控 & 3D 数字孪生)**：系统整合了萤石 (Ezviz) 云监控，并内置了极具赛博朋克感的 `enclosure-sensor` 3D WebGL 数字孪生看板。电脑屏幕前，舱内温湿度传感数据、实时画面一览无余。
+## 快速开始
 
-### 🤖 AI 原生工程与人机协同 (Human-AI Collaboration)
-PandaSpool 是 **AI 与人类结对编程 (Pair Programming)** 的极佳范例。
-本项目的核心架构（包括逆向解析非公开拓竹云 API、搭建多端同步闭环）均通过“对话即部署 (Talk to Deploy)”完成。玩家只需抛出痛点，AI 即可自主完成抓包排查、Go 逻辑重写及 SSH 一键部署。它极大降低了创客搭建复杂 IoT 全栈系统的门槛。
+**方式一：直接下载**（推荐，从 [Releases](https://github.com/aiy365/PandaSpool/releases) 获取 `printpilot-linux-amd64`）：
 
-### 🛠️ 创客空间全家桶 (Monorepo Ecosystem)
-本项目采用大仓库 (Monorepo) 架构：
-* **`PandaSpool (Root)`**：核心 Go 后端与库存管理主 Web 中枢。
-* **`desk/`**：桌面端常驻辅助挂件。
-* **`enclosure-sensor/`**：基于 3D WebGL 的打印机封箱环境监控看板。
-* **`material-lab/`**：耗材极限测试与参数调优数据分析室。
+```bash
+wget https://github.com/aiy365/PandaSpool/releases/latest/download/printpilot-linux-amd64
+chmod +x printpilot-linux-amd64
 
-### 🚀 快速开始
+# 数据目录放哪都行，建议独立目录便于备份
+mkdir -p /var/lib/printpilot
+PRINTPILOT_DATA_DIR=/var/lib/printpilot PRINTPILOT_LISTEN=127.0.0.1:8088 ./printpilot-linux-amd64
+```
+
+浏览器打开 `http://你的主机:8088`，首次进入会要求创建管理员账号，然后到「设置」页填拓竹/易微联/萤石账号即可。
+
+**方式二：源码构建**（Go ≥ 1.22，前端无需 Node，静态资源已内置）：
+
 ```bash
 git clone https://github.com/aiy365/PandaSpool.git
 cd PandaSpool
-GOOS=linux GOARCH=amd64 go build -o pandaspool ./cmd/pandaspool
-./pandaspool
+go build -o pandaspool ./cmd/pandaspool
 ```
 
-### ⚖️ 免责声明与协议 (Disclaimer & License)
-PandaSpool 是一个独立的社区开源项目，与拓竹科技 (Bambu Lab) 无任何关联或背书。“Bambu Lab” 及相关商标均归其合法所有者所有。本项目基于 MIT 协议开源。
+**systemd 常驻**：参考 [`deploy/printpilot.service`](deploy/printpilot.service)。忘记管理员密码时，在服务器上执行 `./printpilot-linux-amd64 reset-admin 新密码` 重置。
+
+> 🔐 放到公网请务必套一层 HTTPS 反向代理（Caddy / Nginx）。登录基于 Cookie 会话（14 天），空气探头与 AI/桌面端走独立 Bearer 令牌（设置页可查），所有密钥接口均需鉴权且返回时脱敏。
+
+## 配置指引（全部在网页设置页完成）
+
+| 模块 | 填什么 | 备注 |
+|---|---|---|
+| 拓竹云 | 地区 + 打印机 SN + 账号 | 国内通常需要验证码登录，登录一次后记住 Token；也可直接粘贴 accessToken |
+| 易微联 | App 同一套账号 | 登录后点选绑定各路继电器，三联会拆成三路；密码登录报 407 时改用网页版 Token |
+| 萤石 | AppKey/Secret + 设备序列号 | 验证码在设备底部标签；画面支持旋转与上下左右裁切 |
+| 企业微信 | 企业ID + 应用Secret + AgentID + AESKey | 按"接收消息"URL 校验流程配置，用于图片推送 |
+| 空气探头 | 复制空气令牌到 ESP32 固件 | `POST /api/ingest/air`，格式见 [`firmware/air-post.example.json`](firmware/air-post.example.json) |
+
+## 仓库结构
+
+```text
+├── cmd/pandaspool/       # 入口（serve / reset-admin）
+├── internal/
+│   ├── bambu/            # 拓竹：云登录、云端耗材 CRUD、局域网 MQTT 状态机
+│   ├── ewelink/          # 易微联：登录（含社区 APPID 回退）、设备/通道、token 自动续期
+│   ├── ezviz/            # 萤石：AccessToken、取流
+│   ├── server/           # HTTP 路由、会话鉴权、通知、自动化巡检
+│   └── store/            # SQLite（WAL）：库存/料盘/参数/收集箱/预设/治理
+├── web/                  # 原生 JS SPA + Tailwind/DaisyUI，go:embed 打包进二进制
+├── desk/                 # PandaSpool Desk —— Windows 托盘常驻（WPF，任务栏看进度）
+├── enclosure-sensor/     # 机箱环境探头：3D 打印外壳 + ESP32-C3 + PMS5003 + SHT31
+├── material-lab/         # 耗材实验室：参数测试与数据分析
+├── firmware/             # 探头上报报文示例
+└── deploy/               # systemd 服务文件
+```
+
+## API 摘要
+
+| 端点 | 鉴权 | 用途 |
+|---|---|---|
+| `GET /api/health` | 无 | 健康检查 |
+| `POST /api/ingest/air` | 空气令牌 (Bearer) | ESP32 上报空气数据 |
+| `GET /api/ai/materials` | AI 令牌 (Bearer) | 全量耗材档案（只读） |
+| `POST /api/ai/drafts` | AI 令牌 (Bearer) | 提交参数草稿（仅草稿，待人工确认） |
+| `GET /llms.txt` | AI 令牌 (Bearer) | 给 AI 看的自述文档 |
+| `GET /api/desk` | AI 令牌 (Bearer) | 桌面托盘轮询的机台摘要 |
+| 其余 `/api/*` | 会话 Cookie | 页面功能 |
+
+---
+
+<a id="english"></a>
+
+## English
+
+**PandaSpool** is a self-hosted control hub for Bambu Lab 3D printers: printer telemetry, physical spool inventory synced 1:1 with Bambu Cloud, environment automation (eWeLink smart plugs), camera viewing (Ezviz), filament knowledge base with an AI draft → human review workflow — all in a single Go binary with an embedded web UI.
+
+**Highlights**
+
+- **Spool management**: intake generates short codes (e.g. `pm001`), registers a custom filament on Bambu Cloud with the code in its note, and syncs remaining weight after you weigh the spool.
+- **Printer monitoring**: local MQTT telemetry (temps, progress, layers, AMS loadout), with sane handling of the idle-state `tray_now=254` placeholder quirk.
+- **Environment automation**: exhaust/purifier auto-on while printing, delayed auto-off, fill light, presence sensing via eWeLink relays.
+- **Filament archive**: products, colors, stock ledger, purchase cost averaging, multi-source parameter claims with conflict detection and comparison views.
+- **AI-friendly**: read-only material pack + draft-only write API (`/llms.txt` documents it), so agents can help without touching inventory.
+- **Zero-ops stack**: Go stdlib + pure-Go SQLite (WAL) + vanilla JS SPA embedded via `go:embed`. One binary, one data directory.
+
+**Run it**
+
+```bash
+# from Releases, or: go build -o pandaspool ./cmd/pandaspool
+PRINTPILOT_DATA_DIR=/var/lib/printpilot PRINTPILOT_LISTEN=127.0.0.1:8088 ./pandaspool
+# open http://127.0.0.1:8088 and create the admin account on first run
+```
+
+Configure Bambu / eWeLink / Ezviz / WeCom on the Settings page. Put it behind HTTPS if exposed. See the Chinese section above for the full guide.
+
+## License
+
+MIT — see [LICENSE](LICENSE). Independent community project, **not** affiliated with or endorsed by Bambu Lab, Ezviz, or eWeLink. All product names are trademarks of their respective owners.
