@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 type CloudFilament struct {
@@ -98,33 +99,35 @@ func (a *CloudAdapter) ListFilaments() ([]CloudFilament, error) {
 }
 
 func (a *CloudAdapter) CreateFilament(f CloudFilament) (int64, error) {
+	if strings.TrimSpace(f.Note) == "" {
+		return 0, fmt.Errorf("建档备注不能为空（用于回查云端 ID）")
+	}
 	_, err := a.request(http.MethodPost, "/v1/design-user-service/my/filament/v2", f)
 	if err != nil {
 		return 0, err
 	}
 
-	// POST returns empty JSON. Need to list and find the newly created one.
-	// Since we don't know the exact ID, we might need to find by some unique attributes or just pick the latest.
-	// Wait, the prompt says: "POST 创建后需要再调用 ListFilaments 来找到新增的 ID（POST 返回空 JSON `{}`）"
+	// POST 返回空 JSON。按备注精确回查新条目——同规格多卷只差备注里的
+	// 短编号，按"ID 最大的"猜会绑错盘。
 	filaments, err := a.ListFilaments()
 	if err != nil {
 		return 0, err
 	}
-	
-	// Try to match the newly created filament
-	// We'll return the one with the highest ID assuming it's the newest, or try to match by FilamentName/Color
-	var maxID int64
 	for _, fil := range filaments {
-		if fil.ID > maxID {
-			maxID = fil.ID
+		if fil.ID > 0 && fil.Note == f.Note {
+			return fil.ID, nil
 		}
 	}
-	
-	if maxID == 0 {
-		return 0, fmt.Errorf("could not find newly created filament ID")
-	}
+	return 0, fmt.Errorf("云端已建档但未回查到备注 %q 的条目（列表可能延迟，稍后在「云端对账」里补绑）", f.Note)
+}
 
-	return maxID, nil
+// TruncateRunes 按字符截断，避免切坏中文。
+func TruncateRunes(s string, n int) string {
+	r := []rune(s)
+	if len(r) <= n {
+		return s
+	}
+	return string(r[:n])
 }
 
 func (a *CloudAdapter) UpdateWeight(id int64, filamentName string, netWeight int) error {
