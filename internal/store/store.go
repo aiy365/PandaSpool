@@ -201,6 +201,8 @@ type Settings struct {
 		VerifyCode   string `json:"verify_code"`
 		Rotation     string `json:"rotation"`
 		Crop         string `json:"crop"`
+		AccessToken  string `json:"access_token,omitempty"`
+		TokenExpireAt int64 `json:"token_expire_at,omitempty"`
 	} `json:"ezviz"`
 	Air struct {
 		Token string `json:"token"`
@@ -281,6 +283,12 @@ func (s *Store) SaveSettings(in Settings) error {
 	if in.Ezviz.VerifyCode == "" || in.Ezviz.VerifyCode == "********" {
 		in.Ezviz.VerifyCode = cur.Ezviz.VerifyCode
 	}
+	if in.Ezviz.AccessToken == "" || in.Ezviz.AccessToken == "********" {
+		in.Ezviz.AccessToken = cur.Ezviz.AccessToken
+	}
+	if in.Ezviz.TokenExpireAt == 0 {
+		in.Ezviz.TokenExpireAt = cur.Ezviz.TokenExpireAt
+	}
 	if in.Bambu.Password == "" || in.Bambu.Password == "********" {
 		in.Bambu.Password = cur.Bambu.Password
 	}
@@ -337,6 +345,9 @@ func Redact(in Settings) Settings {
 	}
 	if in.Ezviz.VerifyCode != "" {
 		in.Ezviz.VerifyCode = "********"
+	}
+	if in.Ezviz.AccessToken != "" {
+		in.Ezviz.AccessToken = "********"
 	}
 	if in.Automations.WeComSecret != "" {
 		in.Automations.WeComSecret = "********"
