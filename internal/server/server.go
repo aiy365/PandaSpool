@@ -101,6 +101,7 @@ func New(dataDir, listen string) (*Server, error) {
 	mux.HandleFunc("/api/products", s.auth(s.products))
 	mux.HandleFunc("/api/products/", s.auth(s.productItem))
 	mux.HandleFunc("/api/spools", s.auth(s.spoolsHandler))
+	mux.HandleFunc("/api/spools/cloud/", s.auth(s.spoolCloudHandler))
 	mux.HandleFunc("/api/spools/", s.auth(s.spoolItemHandler))
 	mux.HandleFunc("/api/presets", s.auth(s.presetsListHandler))
 	mux.HandleFunc("/api/presets/sync", s.auth(s.presetsSyncHandler))
@@ -290,6 +291,12 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) summary(w http.ResponseWriter, r *http.Request) {
 	out := s.st.Summary()
+	// 库存口径统一为物理料盘：未开封/开封从 spools 派生，台账不再手工维护。
+	var spUnopened, spOpened int
+	_ = s.st.DB.QueryRow(`SELECT IFNULL(SUM(status='unopened'),0), IFNULL(SUM(status='opened'),0) FROM spools`).Scan(&spUnopened, &spOpened)
+	out["unopened"] = spUnopened
+	out["opened"] = spOpened
+	out["spools"] = spUnopened + spOpened
 	st := s.bambu.Status()
 	gcode, _ := st["gcode_state"].(string)
 	stage, _ := st["stage"].(string)
