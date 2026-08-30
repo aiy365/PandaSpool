@@ -486,6 +486,14 @@ func (s *Store) ListColors(productID string) ([]Color, error) {
 	return out, rows.Err()
 }
 
+func (s *Store) GetColor(id string) (Color, error) {
+    var c Color
+    err := s.DB.QueryRow(`SELECT id,product_id,name,color_family,unopened,opened,notes FROM colors WHERE id=?`, id).
+        Scan(&c.ID, &c.ProductID, &c.Name, &c.ColorFamily, &c.Unopened, &c.Opened, &c.Notes)
+    s.fillColorCost(&c)
+    return c, err
+}
+
 func (s *Store) ListAllColors() ([]Color, error) {
 	rows, err := s.DB.Query(`SELECT id,product_id,name,color_family,unopened,opened,notes FROM colors`)
 	if err != nil {

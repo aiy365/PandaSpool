@@ -107,6 +107,7 @@ func New(dataDir, listen string) (*Server, error) {
 	mux.HandleFunc("/api/products/", s.auth(s.productItem))
 	mux.HandleFunc("/api/spools", s.auth(s.spoolsHandler))
 	mux.HandleFunc("/api/spools/cloud/", s.auth(s.spoolCloudHandler))
+	mux.HandleFunc("/api/spools/sync-color", s.auth(s.spoolSyncColor))
 	mux.HandleFunc("/api/spools/", s.auth(s.spoolItemHandler))
 	mux.HandleFunc("/api/presets", s.auth(s.presetsListHandler))
 	mux.HandleFunc("/api/presets/sync", s.auth(s.presetsSyncHandler))
