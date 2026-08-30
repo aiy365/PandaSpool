@@ -847,15 +847,34 @@ async function viewMaterials() {
 
 async function viewProduct(id) {
     pageLoading("正在打开产品…");
-    let p, allClaims, data;
+    let p, allClaims, data, spoolRecords;
     try {
-      p = await api("/api/products/" + id);
-      allClaims = await api("/api/claims?product_id=" + id);
+      [p, allClaims, spoolRecords] = await Promise.all([
+        api("/api/products/" + id),
+        api("/api/claims?product_id=" + id),
+        api("/api/spools"),
+      ]);
       data = p;
     } catch (ex) { pageError(ex); return; }
     const drafts = (allClaims || []).filter(c => c.status === "draft");
     const claims = (allClaims || []).filter(c => c.status !== "draft");
+    // 关联拓竹云端规格：拉标记物列表（备注无编号的），默认选中产品已关联值
+    api("/api/spools/cloud/sync", { method: "POST" }).then(res => {
+      const sel = $("#pbpi");
+      if (!sel) return;
+      const specs = res.specs || [];
+      if (!specs.length) {
+        sel.innerHTML = `<option value="">云端没有规格标记物，先去拓竹云端/Studio 建一卷</option>`;
+        return;
+      }
+      sel.innerHTML = `<option value="">-- 未关联 --</option>` + specs.map(sp =>
+        `<option value="${sp.cloud_id}" ${sp.cloud_id.toString() === (p.bambu_preset_id || "") ? "selected" : ""}>${esc(sp.name)}（${esc(sp.filament_id)} · ${esc(sp.vendor || "?")}）</option>`).join("");
+    }).catch(ex => {
+      const sel = $("#pbpi");
+      if (sel) sel.innerHTML = `<option value="">规格列表加载失败：${esc(ex.message)}</option>`;
+    });
     const conflictKeys = new Set();
+  const productSpools = (spoolRecords || []).filter(sp => (p.colors || []).some(c => c.id === sp.color_id));
   const colorOpts = `<option value="">产品级（整系列）</option>` + (p.colors || []).map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join("");
   const colorName = (cid) => (p.colors || []).find((c) => c.id === cid)?.name || "整系列";
   const draftCard = drafts.length === 0 ? "" : card(`
@@ -904,7 +923,7 @@ async function viewProduct(id) {
       <h1 class="card-title">${esc(p.brand)} ${esc(p.product_line)}</h1>
       ${specStrip(p.card)}
         <div class="row cols-2">
-          ${field("关联官方预设", selectEl("pbpi", `<option value="">-- 请先抓取并选择底层预设 --</option>`))}
+          ${field("关联拓竹云端规格（颜色行【同步】按它建档）", selectEl("pbpi", `<option value="">加载中…</option>`))}
           ${field("细分系列", inputEl("pl", `value="${esc(p.product_line)}" placeholder="如：哑光 / 渐变 (选填)"`))}
         </div>
         <div class="row cols-2">
@@ -940,9 +959,27 @@ async function viewProduct(id) {
           <td><input class="input input-bordered input-xs w-16" id="u-${c.id}" type="number" min="0" value="${c.unopened}"></td>
           <td><select class="select select-bordered select-xs" id="o-${c.id}"><option value="0"${c.opened ? "" : " selected"}>无</option><option value="1"${c.opened ? " selected" : ""}>有</option></select></td>
           <td>${c.avg_price ? `${yuan(c.avg_price)} <span class="muted">/${c.buy_qty}盘</span>` : "—"}</td>
-          <td class="join"><button class="btn btn-ghost btn-xs join-item" data-savec="${c.id}">存</button><button class="btn btn-ghost btn-xs join-item" data-delc="${c.id}">删</button></td></tr>`;
+          <td class="join"><button class="btn btn-primary btn-xs join-item" data-syncc="${c.id}">同步</button><button class="btn btn-ghost btn-xs join-item" data-savec="${c.id}">存</button><button class="btn btn-ghost btn-xs join-item" data-delc="${c.id}">删</button></td></tr>`;
         }).join("")}</tbody>
       </table></div>
+    `)}
+    ${card(`
+      <h2 class="card-title">物理料盘 <span class="badge badge-ghost">${productSpools.length}</span></h2>
+      <p class="muted text-sm">颜色行【同步】生成的编号记录，一键同步后实物打标即可对上。称重与报废去「料盘」页操作。</p>
+      ${productSpools.length ? `<div class="overflow-x-auto mt-2"><table class="table table-sm table-zebra">
+        <thead><tr><th>编号</th><th>颜色</th><th>状态</th><th>重量(g)</th><th>同步时间</th></tr></thead>
+        <tbody>${productSpools.map(sp => {
+          const c = (p.colors || []).find(c => c.id === sp.color_id);
+          const hex = (sp.color_hex || "").toLowerCase();
+          const sw = /^[0-9a-f]{6}$/.test(hex) ? `<span class="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" style="background:#${hex}"></span>` : "";
+          const st = sp.status === "unopened" ? "未开封" : sp.status === "opened" ? "已开封" : "已用完";
+          return `<tr><td><span class="badge badge-primary font-mono badge-sm">${esc(sp.short_code)}</span></td>
+            <td>${sw}${esc(c ? c.name : "—")}</td>
+            <td>${st}</td>
+            <td>${sp.net_weight_g}</td>
+            <td class="muted text-xs">${sp.last_synced_at ? esc(sp.last_synced_at.replace("T", " ").slice(0, 16)) : "—"}</td></tr>`;
+        }).join("")}</tbody></table></div>`
+      : `<p class="muted text-sm mt-2">还没有料盘。在上方颜色行点【同步】，即按台账数量到拓竹云端建档并生成编号。</p>`}
     `)}
     ${card(`
       <h2 class="card-title">入库记账</h2>
@@ -1132,6 +1169,29 @@ async function viewProduct(id) {
     const btn = e.target.closest("button");
     if (!btn) return;
     try {
+      if (btn.dataset.syncc) {
+        const cid = btn.dataset.syncc;
+        const row = (p.colors || []).find((c) => c.id === cid);
+        if (!row) return;
+        const total = Number(row.unopened || 0) + (Number(row.opened || 0) > 0 ? 1 : 0);
+        if (!total) { toast("这行台账是 0 盘，先把未开封数量填上再同步", "warning"); return; }
+        if (!confirm(`将按台账「未开封 ${row.unopened || 0} + 开封 ${row.opened > 0 ? 1 : 0}」去拓竹云端建档并生成编号（已有盘只补差额），继续？`)) return;
+        btn.disabled = true;
+        try {
+          const res = await api("/api/spools/sync-color", { method: "POST", body: { color_id: cid } });
+          if (res.codes && res.codes.length) {
+            toast(`已建档 ${res.codes.length} 盘，编号：${res.codes.join(", ")}，请写到盘上`, "success", { sticky: true });
+          } else {
+            toast(res.message || "台账与料盘已一致", "info");
+          }
+          viewProduct(id);
+        } catch (ex) {
+          toast(ex.message, "error");
+        } finally {
+          btn.disabled = false;
+        }
+        return;
+      }
       if (btn.dataset.savec) {
         const cid = btn.dataset.savec;
         const row = (p.colors || []).find((c) => c.id === cid);

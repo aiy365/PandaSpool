@@ -658,3 +658,174 @@ func (s *Server) spoolCloudHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "not found", http.StatusNotFound)
 	}
 }
+
+// spoolSyncColor 按颜色台账（未开封 N + 开封 Y）幂等补齐拓竹云端建档：
+// 已有料盘记录（未报废）不足台账数的部分才补建，重复点击不会产生垃圾。
+// 产品必须先在产品页"关联拓竹云端规格"选定标记物（bambu_preset_id = 云端条目 ID）。
+func (s *Server) spoolSyncColor(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	var req struct {
+		ColorID string `json:"color_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil || req.ColorID == "" {
+		jsonError(w, "缺少 color_id", http.StatusBadRequest)
+		return
+	}
+	color, err := s.st.GetColor(req.ColorID)
+	if err != nil {
+		jsonError(w, "颜色不存在", http.StatusNotFound)
+		return
+	}
+	product, err := s.st.GetProduct(color.ProductID)
+	if err != nil {
+		jsonError(w, "产品不存在", http.StatusNotFound)
+		return
+	}
+	var specCloudID int64
+	if _, err := fmt.Sscanf(product.BambuPresetID, "%d", &specCloudID); err != nil || specCloudID <= 0 {
+		jsonError(w, "该产品还没关联拓竹云端规格：请在产品页上方「关联拓竹云端规格」里选一次并保存", http.StatusBadRequest)
+		return
+	}
+
+	ad, err := s.cloudAdapter()
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	filaments, err := ad.ListFilaments()
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusBadGateway)
+		return
+	}
+	var spec *bambu.CloudFilament
+	for i := range filaments {
+		f := filaments[i]
+		if f.ID == specCloudID && SpoolCodeFromNote(f.Note) == "" {
+			spec = &filaments[i]
+			break
+		}
+	}
+	if spec == nil {
+		jsonError(w, "关联的云端规格不存在了，请重新选一次", http.StatusBadRequest)
+		return
+	}
+
+	// 幂等补齐：已有（未报废）料盘数 vs 台账数
+	spools, err := s.st.ListSpools()
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	curUn, curOp := 0, 0
+	for _, sp := range spools {
+		if sp.ColorID != color.ID || sp.Status == "depleted" {
+			continue
+		}
+		switch sp.Status {
+		case "unopened":
+			curUn++
+		case "opened":
+			curOp++
+		}
+	}
+	addUn := color.Unopened - curUn
+	addOp := color.Opened - curOp
+	if addUn < 0 {
+		addUn = 0
+	}
+	if addOp < 0 {
+		addOp = 0
+	}
+	total := addUn + addOp
+	if total == 0 {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok":      true,
+			"codes":   []string{},
+			"message": fmt.Sprintf("台账与料盘已一致（未开 %d + 开 %d），无需补建", curUn, curOp),
+		})
+		return
+	}
+
+	cfg := s.st.LoadSettings()
+	colorHex := colorHexFromName(color.Name)
+	vendor := vendorOf(spec)
+	prefix := strings.ToLower(getInitial(vendor) + getInitial(color.Name))
+	baseName := strings.TrimSpace(spec.FilamentName)
+	if baseName == "" {
+		baseName = spec.FilamentID
+	}
+	netWeight := spec.NetWeight
+	if netWeight <= 0 {
+		netWeight = 1000
+	}
+	filamentID := spec.FilamentID
+	if filamentID == "" {
+		filamentID = getBambuFilamentID(spec.Category + " " + baseName)
+	}
+
+	codes := make([]string, 0, total)
+	for i := 0; i < total; i++ {
+		code, err := s.st.NextShortCode(prefix)
+		if err != nil {
+			jsonError(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+		name := bambu.TruncateRunes(strings.TrimSpace(baseName+" "+color.Name), 40)
+		status := "unopened"
+		if i >= addUn { // 未开封的建完后，剩下的补开封盘
+			status = "opened"
+		}
+		cloudID, err := ad.CreateFilament(bambu.CloudFilament{
+			FilamentID:   filamentID,
+			FilamentName: name,
+			Color:        colorHex + "FF",
+			NetWeight:    netWeight,
+			Note:         fmt.Sprintf("PandaSpool %s %s", code, color.Name),
+		})
+		if err != nil {
+			if i > 0 {
+				break
+			}
+			jsonError(w, fmt.Sprintf("云端建档失败：%v", err), http.StatusBadGateway)
+			return
+		}
+		if _, err := s.st.SaveSpool(store.Spool{
+			ColorID:           color.ID,
+			ShortCode:         code,
+			BambuCloudID:      cloudID,
+			BambuVendor:       vendor,
+			BambuFilamentName: name,
+			BambuFilamentID:   filamentID,
+			BambuRegion:       cfg.Bambu.Region,
+			ColorHex:          colorHex,
+			NetWeightG:        float64(netWeight),
+			Status:            status,
+			SyncEnabled:       true,
+		}); err != nil {
+			if i > 0 {
+				break
+			}
+			jsonError(w, fmt.Sprintf("本地入库失败：%v", err), http.StatusInternalServerError)
+			return
+		}
+		codes = append(codes, code)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]any{
+		"ok":    true,
+		"codes": codes,
+		"message": fmt.Sprintf("已建档 %d 盘（未开 %d + 开 %d），编号：%s",
+			len(codes), min(addUn, len(codes)), len(codes)-min(addUn, len(codes)), strings.Join(codes, ", ")),
+	})
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
