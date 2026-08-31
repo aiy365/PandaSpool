@@ -1097,7 +1097,18 @@ func (s *Server) camera(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) air(w http.ResponseWriter, r *http.Request) {
-	recent, err := s.st.RecentAir(50)
+	// ?limit= 供前端曲线图取更长的时间窗（1440 ≈ 24h @ 60s 采样）
+	limit := 50
+	if v := r.URL.Query().Get("limit"); v != "" {
+		var n int
+		if _, err := fmt.Sscanf(v, "%d", &n); err == nil && n > 0 {
+			limit = n
+		}
+	}
+	if limit > 1440 {
+		limit = 1440
+	}
+	recent, err := s.st.RecentAir(limit)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
