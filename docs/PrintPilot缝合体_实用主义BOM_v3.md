@@ -2,6 +2,8 @@
 # PandaSpool 实用主义架构与 BOM (终极开源版)
 
 > **修订说明**：本版本深度采纳了 Codex 提出的“完全本地化、去中心化、公开可复刻”架构思想，正式废弃了对云服务器、公网 DDNS 及单一 MIPS 路由器的强依赖，全面转向 **“本地边缘节点 (Hub) + 分布式传感器 (Air Node)”** 的现代开源物联网标准模型。
+>
+> **v3.1 修订（2026-08-30）**：第 3 节重写——A1/P1 固件在局域网内原生提供标准 RTSP（`rtsp://bblp:访问码@IP:6000/stream1`），转发层改用 **go2rtc 透传**（官方发布含 linux/mipsel 构建），废弃“自研 TLS 6000 解包 JPEG”的旧设计；第 2 节 Legacy 机型（Newifi D2，已刷 Padavan）职责升级为“家庭路由本职 + 摄像头网关 + WireGuard 入口”。
 
 ---
 
@@ -27,21 +29,33 @@ PandaSpool 不再是“一个网页 + 一台远端云服务器”，而是一个
 | **公开参考机型 (Reference)** | **香橙派 Orange Pi Zero 3** | 四核 A53, **2GB RAM**<br>千兆网口, Wi-Fi 5 | **主推标准件**。性能充裕，完美承担全套 Go 后端、SQLite、MQTT 及多路视频分发。甚至能自建 AP 热点。性价比极高。 |
 | **高阶稳定版 (Pro)** | **NanoPi R2S Plus** | 四核 RK3328, 1GB RAM<br>自带 32GB eMMC | eMMC 颗粒寿命远高于 TF 卡，适合对 SQLite 历史数据长久保存有极高要求的专业工作室。 |
 | **通用容器版 (Generic)** | 任意 Linux 小主机 / 树莓派 / NAS | x86_64 或 ARM64 | 提供标准的 `docker-compose.yml`，一键部署，适合已有服务器集群的极客。 |
-| **遗留/降级版 (Legacy)** | **新路由 3 (Newifi D2)** | MT7621, 512MB RAM<br>32MB 闪存 | **仅做网关和简易状态流转**。无法使用 Docker，无法跑大型分析，仅适合二手极限低成本验证。 |
+| **遗留/降级版 (Legacy)** | **新路由 3 (Newifi D2)**<br>（已刷 Padavan，在役） | MT7621 双核, 512MB RAM<br>32MB 闪存 + U 盘 | **家庭路由本职 + 摄像头网关**：U 盘跑 go2rtc（官方 mipsel 单二进制，透传不转码）转发 A1 RTSP，Padavan 自定义脚本开机自启；兼任 Padavan 内置 WireGuard 的远程入口。不做 Docker / Hub / 转码 / 录像。 |
 
 ---
 
-## 3. 局域网 A1 摄像头拉流重构
+## 3. 局域网 A1 摄像头转发（RTSP + go2rtc）
 
-完全推翻 Gemini 此前提出的“通过 TUTK 解包并需要外网 HTTPS + Token 鉴权”的弯路。
-A1 摄像头的局域网解决方案应极简且安全：
+完全推翻 Gemini 此前提出的“通过 TUTK 解包并需要外网 HTTPS + Token 鉴权”的弯路，同时修正本文件 v3.0 中“自己实现 TLS 6000 JPEG 解包”的过度设计：**A1/P1 系列固件在局域网内原生暴露标准 RTSP 流**（SimplyPrint、OctoEverywhere 等多方验证）：
 
-1. **直连解包**：PandaSpool Hub（例如 Orange Pi）在本地网络中，直接通过 TLS 6000 端口，使用 LAN Access Code 连接打印机，提取 JPEG 帧。
-2. **多路分发**：Hub 将提取的帧封装为标准的 MJPEG 视频流，通过同源的本地接口（如 `/api/printers/a1/camera`）分发给所有连接到 Hub 的浏览器。
+```
+rtsp://bblp:<局域网访问码>@<打印机IP>:6000/stream1
+```
+
+转发层只需要一个进程：**go2rtc**（单文件静态二进制，官方发布含 `linux_mipsel`、arm64、amd64）：
+
+1. **拉流透传**：go2rtc 从 A1 拉取 RTSP，向浏览器透传 WebRTC / HLS / MJPEG，**全程不转码**——MT7621（Newifi D2）与 Orange Pi 均可胜任，512MB 内存余量充足。
+2. **部署位置两级**：
+   - **边缘侧（默认）**：路由器 U 盘或 Hub 上跑 go2rtc，局域网浏览器直接开 `http://<go2rtc地址>:1984` 观看；Padavan 用“插入 USB 后执行”自定义脚本开机自启。
+   - **远程侧（可选）**：WireGuard 回家后同样直开 go2rtc 页面；进阶方案是边缘与云服务器建 WG 隧道、云端另跑一个 go2rtc 拉流，让 `3d.bstccc.cn` 的 HTTPS 页面**同源嵌入**机台页——彻底规避 Mixed Content 报错。
 3. **安全闭环**：
-   - 浏览器与 Hub 均在 `http://pandaspool.local` 域内，**彻底消灭了 HTTPS 网页加载 HTTP 视频的 Mixed Content 报错**。
-   - Access Code 仅保存在 Hub 的本地配置文件中，绝对不向前端暴露。
-   - 一个上游连接，多个下游浏览器观看，大幅降低打印机网卡负担。
+   - 访问码仅存在于 go2rtc 配置文件（路由器/Hub 本地），绝不进前端代码；
+   - 一个上游连接、多路下游观看，不增加打印机网卡负担；
+   - 转发端口只在内网/WG 隧道内暴露，不做公网端口映射。
+
+### 已知边界
+- **第一前提**：A1 当前固件的 RTSP 可用性需实测——电脑 VLC 打开上面的地址能出画面，整个方案才成立；
+- 开启“仅局域网模式”后 RTSP 仍可用（云端官方直播失效），与本方案不冲突；
+- 浏览器播放以 HLS/MJPEG 兜底最稳，WebRTC 延迟最低（go2rtc 页面内置播放器，三种均可切换）。
 
 ---
 
@@ -78,9 +92,9 @@ A1 摄像头的局域网解决方案应极简且安全：
 
 项目推进应遵循“先核心自洽，再边缘拓展”的逻辑：
 
-- **P0 独立 Hub 闭环**：验证 Orange Pi 启动 Web 页面、局域网配对 A1、拉取状态与 6000 端口摄像头分发。（拔掉网线，系统仍需正常运作）。
+- **P0 独立 Hub 闭环**：验证 Orange Pi 启动 Web 页面、局域网配对 A1、拉取状态；摄像头经 RTSP + go2rtc 分发（D2 或 Hub 承载）。（拔掉网线，系统仍需正常运作）。
 - **P1 Profile 引擎**：落实“机器→喷嘴→材料→用途”的核心工艺参数生成，脱离对云端 AI API 的强依赖，改用本地结构化规则树兜底。
 - **P2 Chamber Node**：跑通 ESPHome 仓内节点采集，在网页渲染 24h 完整的打印过程环境曲线。
 - **P3 Room Node 与自动化 (P4)**：接入环境对照节点，完成插座启停与联动逻辑（如打印后延时散味、有人进屋加强净化）。
-- **P5 远程访问**：最后才提供基于 Tailscale / WireGuard 的局域网外连可选模块。
+- **P5 远程访问**：最后才提供远程观看——优先用 Padavan 内置 WireGuard 回家直开 go2rtc；“WG 隧道 + 云端 go2rtc 同源嵌入”作为进阶。
 
