@@ -220,7 +220,7 @@ body { background: var(--color-base-100); color: oklch(var(--bc)); }
   font-variant-numeric: tabular-nums;
 }
 .stk-table tbody tr {
-  border-bottom: 1px solid var(--fallback-b3, oklch(var(--b3) / 0.3));
+  border-bottom: 1px solid oklch(var(--b3) / 0.3);
 }
 .stk-table tbody tr:hover td, .stk-table tbody tr:hover th {
   filter: brightness(0.95);
@@ -254,7 +254,7 @@ body { background: var(--color-base-100); color: oklch(var(--bc)); }
   min-width: 5.1rem;
   min-height: 3.4rem;
   padding: 0;
-  border: 1px solid var(--fallback-b1, oklch(var(--b1)));
+  border: 1px solid oklch(var(--b1));
   cursor: pointer;
   vertical-align: middle;
   overflow: hidden;
@@ -457,8 +457,8 @@ button.stk-bar-btn:hover {
   background: oklch(var(--b2));
   color: oklch(var(--bc));
 }
-.stk-table thead th { border-bottom: 2px solid var(--fallback-b3, oklch(var(--b3) / 0.5)); }
-.stk-foot th, .stk-foot td { border-top: 2px solid var(--fallback-b3, oklch(var(--b3) / 0.5)); font-weight: bold; }
+.stk-table thead th { border-bottom: 2px solid oklch(var(--b3) / 0.5); }
+.stk-foot th, .stk-foot td { border-top: 2px solid oklch(var(--b3) / 0.5); font-weight: bold; }
 .stk-zero { opacity: 0.25; font-size: 0.9rem; }
 .stk-sum b { font-weight: 800; color: oklch(var(--bc)); }
 [data-theme="dark"] .stk-sum b { color: #fff; }
@@ -539,8 +539,8 @@ dialog.modal:not([open]) { display: none !important; }
 .overflow-visible { overflow: visible; }
 .z-\[1\] { z-index: 1; }
 .hover\:badge-primary:hover {
-  background-color: oklch(var(--fallback-p, oklch(var(--p) / 1)));
-  color: oklch(var(--fallback-pc, oklch(var(--pc) / 1)));
+  background-color: oklch(var(--p));
+  color: oklch(var(--pc));
 }
 
 /* 窄屏溢出修复：.shell 是 grid，main 作为条目默认 min-width:auto，
@@ -553,6 +553,61 @@ dialog.modal:not([open]) { display: none !important; }
   position: sticky;
   top: 0;
   z-index: 30;
-  background: oklch(var(--fallback-b1, oklch(var(--b1) / 1)));
-  border-bottom: 1px solid oklch(var(--fallback-b3, oklch(var(--b3) / 0.5)));
+  background: oklch(var(--b1));
+  border-bottom: 1px solid oklch(var(--b3) / 0.5);
 }
+
+/* ===== Polish Layer (v41) — 优雅实用 ===== */
+
+/* 0. 颜色别名：原文件按 --color-* 约定书写但变量从未定义，7 处静默失效（含顶栏透明根因），映射到主题变量 */
+:root {
+  --color-base-100: oklch(var(--b1));
+  --color-base-200: oklch(var(--b2));
+  --color-base-300: oklch(var(--b3));
+  --color-base-content: oklch(var(--bc));
+  --color-primary: oklch(var(--p));
+  --color-primary-content: oklch(var(--pc));
+}
+
+/* 1. 顶栏：轻投影替代生硬边线，导航圆角胶囊化 */
+.topbar { box-shadow: 0 1px 2px rgb(0 0 0 / 0.05); border-bottom: 1px solid oklch(var(--b3) / 0.5); }
+#brand { font-weight: 800; letter-spacing: 0.01em; }
+.nav-desktop a { font-size: 0.92rem; border-radius: 0.55rem; }
+.nav-desktop a:hover { background: oklch(var(--b2)); }
+
+/* 2. 卡片：统一圆角与节奏 */
+.card { border-radius: var(--rounded-box, 1rem); }
+.card-body { line-height: 1.62; }
+.card-title { font-size: 1.05rem; font-weight: 700; }
+
+/* 3. 数字与表格：等宽数字、舒适的密度、悬浮反馈 */
+.stat-value, .table td, .inv-stats, .badge { font-variant-numeric: tabular-nums; }
+.table :where(th, td) { padding: 0.55rem 0.75rem; }
+.table thead th { font-size: 0.8rem; opacity: 0.75; }
+.table tbody tr:hover { background: oklch(var(--b2) / 0.55); }
+
+/* 4. 滚动条：细而随主题 */
+* { scrollbar-width: thin; scrollbar-color: oklch(var(--bc) / 0.28) transparent; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: oklch(var(--bc) / 0.28); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: oklch(var(--bc) / 0.42); }
+
+/* 5. 焦点可见性 */
+:focus-visible { outline: 2px solid oklch(var(--p) / 0.65); outline-offset: 2px; }
+
+/* 6. 克制的动效 */
+body, .card, .topbar, .btn, .badge { transition: background-color 0.18s ease, border-color 0.18s ease, color 0.18s ease; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; }
+}
+
+/* 7. 内联代码：轻底色 */
+:not(pre) > code { font-size: 0.85em; background: oklch(var(--b2)); padding: 0.12em 0.45em; border-radius: 0.4em; }
+
+/* 8. 登录卡：一点浮起 */
+.auth .card { box-shadow: 0 10px 34px rgb(0 0 0 / 0.07); }
+.auth-brand { width: 3.25rem; height: 3.25rem; margin: 0 auto 0.6rem; display: grid; place-items: center;
+  border-radius: 999px; background: oklch(var(--p) / 0.12); color: oklch(var(--p));
+  font-size: 1.5rem; font-weight: 900; letter-spacing: -0.03em; }
+.-mt-1 { margin-top: -0.25rem; }

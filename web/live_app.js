@@ -218,12 +218,14 @@ function renderLogin() {
   root.innerHTML = "";
   root.append(h(`<div class="auth min-h-screen bg-base-200"><div class="auth-tools">${themeBtn()}</div>
     ${card(`
-      <h1 class="card-title">登录</h1>
+      <div class="auth-brand">P</div>
+      <h1 class="card-title justify-center">PandaSpool</h1>
+      <p class="text-center muted text-sm mb-2 -mt-1">自托管拓竹打印中控</p>
       <form id="f" class="flex flex-col gap-2">
-        ${field("用户名", `<input name="username" class="input input-bordered w-full">`)}
-        ${field("密码", `<input name="password" type="password" class="input input-bordered w-full">`)}
+        ${field("用户名", `<input name="username" class="input input-bordered w-full" autocomplete="username">`)}
+        ${field("密码", `<input name="password" type="password" class="input input-bordered w-full" autocomplete="current-password">`)}
         <p class="text-error" id="err"></p>
-        <div class="card-actions"><button class="btn btn-primary" type="submit">进入</button></div>
+        <div class="card-actions"><button class="btn btn-primary w-full" type="submit">进入</button></div>
       </form>
     `)}
   </div>`));
