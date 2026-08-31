@@ -1304,20 +1304,24 @@ async function viewMachine() {
   if (!$("#mach")) pageLoading("正在连接机台…");
   const ensureShell = () => {
     if ($("#mach")) return;
-    $("#page").innerHTML = `<div id="mach" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-      ${card(`<h1 class="card-title">机台（只读）</h1><div id="mach-stats"></div>`)}
-      ${card(`
-        <h2 class="card-title">监控 + 补光</h2>
-        <div class="mb-2"><button type="button" class="btn btn-sm btn-primary" id="ez-play">▶ 播放</button> <button type="button" class="btn btn-sm btn-outline" id="ez-stop">■ 停止</button></div><div id="ezviz"></div>
-        ${swRow("补光灯", "light")}
-      `)}
-      ${card(`
-        <h2 class="card-title">净化器</h2>
-        ${swRow("仓内长开", "box_always")}
-        ${swRow("仓内打印加强", "box_print")}
-        ${swRow("车间有人", "room")}
-      `)}
-      ${card(`<h2 class="card-title">仓外空气</h2><div id="mach-air"></div>`)}
+    $("#page").innerHTML = `<div id="mach" class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+      <div class="flex flex-col gap-4">
+        ${card(`<h1 class="card-title">机台（只读）</h1><div id="mach-stats"></div>`)}
+        ${card(`
+          <h2 class="card-title">净化器</h2>
+          ${swRow("仓内长开", "box_always")}
+          ${swRow("仓内打印加强", "box_print")}
+          ${swRow("车间有人", "room")}
+        `)}
+        ${card(`<h2 class="card-title">仓外空气</h2><div id="mach-air"></div>`)}
+      </div>
+      <div class="flex flex-col gap-4">
+        ${card(`
+          <h2 class="card-title">监控 + 补光</h2>
+          ${swRow("补光灯", "light")}
+          <div class="mb-2 mt-2"><button type="button" class="btn btn-sm btn-primary" id="ez-play">▶ 播放</button> <button type="button" class="btn btn-sm btn-outline" id="ez-stop">■ 停止</button></div><div id="ezviz"></div>
+        `)}
+      </div>
     </div>`;
     $("#mach").onchange = async (e) => {
       const t = e.target.closest("[data-t]");
@@ -1549,7 +1553,7 @@ async function viewMachine() {
             const ezW = ezvizDiv.clientWidth;
             const rot = d.ezviz?.rotation || "0";
             const isPortrait = (rot === "90" || rot === "-90");
-            const finalH = isPortrait ? Math.round(ezW * 16 / 9) : Math.round(ezW * 9 / 16);
+            const finalH = isPortrait ? Math.round(ezW * 13 / 9) : Math.round(ezW * 9 / 16);
             
             const cropVals = (d.ezviz?.crop || "0,0,0,0").split(",").map(x => Number(x) || 0);
             const cT = Math.max(0, Math.min(99, cropVals[0]));
@@ -1559,7 +1563,7 @@ async function viewMachine() {
             const fW = 1 - (cL + cR) / 100;
             const fH = 1 - (cT + cB) / 100;
             
-            const baseAspect = isPortrait ? 9/16 : 16/9;
+            const baseAspect = isPortrait ? 9/13 : 16/9;
             const cropAspect = baseAspect * (fW / fH);
             const displayH = Math.round(ezW / cropAspect);
             
