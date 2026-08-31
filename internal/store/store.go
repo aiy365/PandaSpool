@@ -301,13 +301,13 @@ func (s *Store) SaveSettings(in Settings) error {
 	if in.Automations.WeComAESKey == "" || in.Automations.WeComAESKey == "********" {
 		in.Automations.WeComAESKey = cur.Automations.WeComAESKey
 	}
-	if in.Air.Token == "" {
+	if in.Air.Token == "" || in.Air.Token == "********" {
 		in.Air.Token = cur.Air.Token
 	}
 	if in.Air.Token == "" {
 		in.Air.Token = NewID()
 	}
-	if in.AI.Token == "" {
+	if in.AI.Token == "" || in.AI.Token == "********" {
 		in.AI.Token = cur.AI.Token
 	}
 	if in.AI.Token == "" {
@@ -354,6 +354,12 @@ func Redact(in Settings) Settings {
 	}
 	if in.Automations.WeComAESKey != "" {
 		in.Automations.WeComAESKey = "********"
+	}
+	if in.Air.Token != "" {
+		in.Air.Token = "********"
+	}
+	if in.AI.Token != "" {
+		in.AI.Token = "********"
 	}
 	return in
 }

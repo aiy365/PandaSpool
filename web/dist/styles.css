@@ -462,3 +462,88 @@ button.stk-bar-btn:hover {
 .stk-zero { opacity: 0.25; font-size: 0.9rem; }
 .stk-sum b { font-weight: 800; color: oklch(var(--bc)); }
 [data-theme="dark"] .stk-sum b { color: #fff; }
+
+/* ===== Utility Layer (v33) =====
+   vendor/daisyui.css 是纯组件构建，不含 Tailwind 工具类；
+   这里补齐 live_app.js 模板实际用到的子集（Tailwind 默认值）。 */
+
+/* 关闭态 <dialog class="modal"> 不得暴露给辅助技术（本 vendor 构建缺隐藏规则） */
+dialog.modal:not([open]) { display: none !important; }
+
+.row.cols-5 { grid-template-columns: repeat(5, 1fr); }
+@media (max-width: 800px) { .row.cols-5 { grid-template-columns: 1fr 1fr; } }
+
+/* 耗材过滤条：品牌下拉不被拉满整行 */
+.inv-toolbar .select { width: auto; flex: 0 1 auto; min-width: 8.5rem; }
+
+.inline-block { display: inline-block; }
+.inline-flex { display: inline-flex; }
+.flex { display: flex; }
+.grid { display: grid; }
+.flex-col { flex-direction: column; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.justify-start { justify-content: flex-start; }
+.gap-3 { gap: 0.75rem; }
+.gap-4 { gap: 1rem; }
+.grid-cols-1 { grid-template-columns: repeat(1, minmax(0, 1fr)); }
+@media (min-width: 768px) { .md\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) {
+  .lg\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .lg\:px-4 { padding-left: 1rem; padding-right: 1rem; }
+}
+@media (min-width: 1280px) { .xl\:grid-cols-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.h-2\.5 { height: 0.625rem; }
+.h-3 { height: 0.75rem; }
+.h-4 { height: 1rem; }
+.h-5 { height: 1.25rem; }
+.w-2\.5 { width: 0.625rem; }
+.w-3 { width: 0.75rem; }
+.w-4 { width: 1rem; }
+.w-5 { width: 1.25rem; }
+.w-52 { width: 13rem; }
+.p-0 { padding: 0; }
+.p-1 { padding: 0.25rem; }
+.p-2 { padding: 0.5rem; }
+.p-4 { padding: 1rem; }
+@media (min-width: 640px) { .sm\:p-6 { padding: 1.5rem; } }
+.pb-1 { padding-bottom: 0.25rem; }
+.px-1 { padding-left: 0.25rem; padding-right: 0.25rem; }
+.px-2 { padding-left: 0.5rem; padding-right: 0.5rem; }
+.py-2 { padding-top: 0.5rem; padding-bottom: 0.5rem; }
+.py-3 { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+.py-4 { padding-top: 1rem; padding-bottom: 1rem; }
+.py-8 { padding-top: 2rem; padding-bottom: 2rem; }
+.mb-2 { margin-bottom: 0.5rem; }
+.mb-3 { margin-bottom: 0.75rem; }
+.mt-1 { margin-top: 0.25rem; }
+.mt-3 { margin-top: 0.75rem; }
+.mt-4 { margin-top: 1rem; }
+.mx-2 { margin-left: 0.5rem; margin-right: 0.5rem; }
+.mx-auto { margin-left: auto; margin-right: auto; }
+.my-2 { margin-top: 0.5rem; margin-bottom: 0.5rem; }
+.mr-1 { margin-right: 0.25rem; }
+.font-bold { font-weight: 700; }
+.font-semibold { font-weight: 600; }
+.font-normal { font-weight: 400; }
+.font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+.text-2xl { font-size: 1.5rem; line-height: 2rem; }
+.text-center { text-align: center; }
+.align-middle { vertical-align: middle; }
+.opacity-70 { opacity: 0.7; }
+.border-0 { border-width: 0; }
+.rounded-full { border-radius: 9999px; }
+.shadow { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06); }
+.shadow-sm { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05); }
+.max-w-7xl { max-width: 80rem; }
+.overflow-visible { overflow: visible; }
+.z-\[1\] { z-index: 1; }
+.hover\:badge-primary:hover {
+  background-color: oklch(var(--fallback-p, oklch(var(--p) / 1)));
+  color: oklch(var(--fallback-pc, oklch(var(--pc) / 1)));
+}
+
+/* 窄屏溢出修复：.shell 是 grid，main 作为条目默认 min-width:auto，
+   表格/栅格的 min-content 会把整页撑宽；置 0 后由内部 overflow-x-auto 容器接管滚动 */
+.shell > main { min-width: 0; }
+.inv-list { grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); }
