@@ -1304,7 +1304,7 @@ async function viewMachine() {
   if (!$("#mach")) pageLoading("正在连接机台…");
   const ensureShell = () => {
     if ($("#mach")) return;
-    $("#page").innerHTML = `<div id="mach" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    $("#page").innerHTML = `<div id="mach" class="grid grid-cols-1 md:grid-cols-2 gap-4">
       ${card(`<h1 class="card-title">机台（只读）</h1><div id="mach-stats"></div>`)}
       ${card(`
         <h2 class="card-title">监控 + 补光</h2>
@@ -1650,10 +1650,87 @@ async function viewMachine() {
   }, 15000);
 }
 
+// 空气趋势曲线（纯 SVG，无第三方库）：温度左轴、湿度右轴，断点自动分段。
+function airCurveSVG(asc, withPM) {
+  const W = 860, H = 250, L = 46, R = 46, T = 14, B = 26;
+  const iw = W - L - R, ih = H - T - B;
+  const t0 = asc[0].ts, t1 = asc[asc.length - 1].ts;
+  const span = Math.max(1, t1 - t0);
+  const X = (ts) => L + ((ts - t0) / span) * iw;
+  const values = (k) => asc.map((r) => (r.data && r.data[k] != null ? Number(r.data[k]) : null));
+  const bounds = (vals) => {
+    const vs = vals.filter((v) => v != null);
+    let lo = Math.min(...vs), hi = Math.max(...vs);
+    if (lo === hi) { lo -= 1; hi += 1; }
+    const pad = (hi - lo) * 0.1;
+    return [Math.floor(lo - pad), Math.ceil(hi + pad)];
+  };
+  const path = (vals, lo, hi) => {
+    const stride = Math.max(1, Math.floor(vals.length / 400));
+    let d = "", pen = false;
+    vals.forEach((v, i) => {
+      if (v == null) { pen = false; return; }
+      if (i % stride !== 0 && i !== vals.length - 1) return;
+      d += (pen ? "L" : "M") + X(asc[i].ts).toFixed(1) + " " + (T + ih - ((v - lo) / (hi - lo)) * ih).toFixed(1) + " ";
+      pen = true;
+    });
+    return d.trim();
+  };
+  const fmtClock = (ts) => new Date(ts * 1000).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+
+  const tV = values("t_c"), hV = values("rh");
+  const [tLo, tHi] = bounds(tV);
+  const tStep = (tHi - tLo) / 4;
+  const tLab = (f) => (tStep < 1 ? (tLo + (tHi - tLo) * f).toFixed(1) : Math.round(tLo + (tHi - tLo) * f));
+  let grid = "", yLabels = "", xLabels = "";
+  for (let f = 0; f <= 4; f++) {
+    const y = T + ih * (1 - f / 4);
+    grid += `<line x1="${L}" y1="${y}" x2="${W - R}" y2="${y}" stroke="currentColor" stroke-opacity="0.12" />`;
+    yLabels += `<text x="${L - 6}" y="${y + 4}" text-anchor="end" font-size="11" fill="#e8703a" opacity="0.85">${tLab(f / 4)}°</text>`;
+    yLabels += `<text x="${W - R + 6}" y="${y + 4}" font-size="11" fill="#4f8ff9" opacity="0.85">${Math.round(100 * (f / 4))}%</text>`;
+  }
+  for (let f = 0; f <= 3; f++) {
+    const ts = t0 + span * (f / 3);
+    xLabels += `<text x="${X(ts).toFixed(1)}" y="${H - 8}" text-anchor="${f === 0 ? "start" : f === 3 ? "end" : "middle"}" font-size="11" fill="currentColor" opacity="0.55">${fmtClock(ts)}</text>`;
+  }
+  const stats = (vals, unit) => {
+    const vs = vals.filter((v) => v != null);
+    if (!vs.length) return "—";
+    return `${vs[vs.length - 1]}${unit}（低 ${Math.min(...vs)} / 高 ${Math.max(...vs)}）`;
+  };
+  let pm = "";
+  if (withPM) {
+    const pV = values("pm25").map((v) => (v == null ? null : v));
+    const [pLo, pHi] = bounds(pV);
+    let pmGrid = "";
+    for (let f = 0; f <= 2; f++) {
+      const y = T + ih * (1 - f / 2);
+      pmGrid += `<line x1="${L}" y1="${y}" x2="${W - R}" y2="${y}" stroke="currentColor" stroke-opacity="0.12" />` +
+        `<text x="${L - 6}" y="${y + 4}" text-anchor="end" font-size="11" fill="#9a6df2" opacity="0.85">${Math.round(pLo + (pHi - pLo) * (f / 2))}</text>`;
+    }
+    pm = `<p class="text-sm muted mt-2">PM2.5（µg/m³）：${stats(pV, "")}</p>
+      <svg viewBox="0 0 ${W} 120" width="100%" role="img" aria-label="PM2.5 趋势" style="color:var(--bc)">
+        <line x1="${L}" y1="${T + ih}" x2="${W - R}" y2="${T + ih}" stroke="currentColor" stroke-opacity="0.2" />
+        ${pmGrid}<path d="${path(pV, pLo, pHi)}" fill="none" stroke="#9a6df2" stroke-width="2" />
+      </svg>`;
+  }
+  return `<div class="flex flex-wrap gap-4 text-sm mb-1">
+      <span><span style="color:#e8703a">●</span> 温度：${stats(tV, "℃")}</span>
+      <span><span style="color:#4f8ff9">●</span> 湿度：${stats(hV, "%")}</span>
+      ${withPM ? `<span><span style="color:#9a6df2">●</span> PM2.5 见下图</span>` : ""}
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="温湿度趋势曲线" style="color:var(--bc)">
+      ${grid}${yLabels}${xLabels}
+      <path d="${path(hV, 0, 100)}" fill="none" stroke="#4f8ff9" stroke-width="2" />
+      <path d="${path(tV, tLo, tHi)}" fill="none" stroke="#e8703a" stroke-width="2" />
+    </svg>${pm}`;
+}
+
 async function viewAir() {
   pageLoading("正在读取空气…");
+  const range = Number(sessionStorage.getItem("pp-air-range")) || 360;
   let rows;
-  try { rows = await api("/api/air"); }
+  try { rows = await api("/api/air?limit=" + range); }
   catch (ex) { pageError(ex); return; }
   if (!Array.isArray(rows)) rows = [];
   const latest = rows[0];
@@ -1669,19 +1746,33 @@ async function viewAir() {
   let latestN = Number(latestTs);
   if (latestN > 1e12) latestN /= 1000;
   const stale = latestN ? (Date.now() / 1000 - latestN) > 15 * 60 : false;
+  // 曲线只取与最新样本同区域的数据，按时间升序
+  const asc = rows.filter((r) => r.zone === latest?.zone).slice().reverse();
+  const withPM = asc.some((r) => r.data && r.data.pm25 != null);
+  const rangeBtn = (v, label) => `<button type="button" class="btn btn-xs ${range === v ? "btn-primary" : "btn-ghost"}" data-air-range="${v}">${label}</button>`;
   $("#page").innerHTML = card(`
     <h1 class="card-title">仓外空气</h1>
     <p>最新 PM2.5：<strong>${pm ?? "—"}</strong> µg/m³　<span class="badge ${badge}">${band}</span>
       ${latestTs ? `<span class="${stale ? "text-warning" : "muted"}"> · ${esc(airAgeText(latestTs))}${stale ? "（超过 15 分钟没报）" : ""}</span>` : ""}</p>
-    <p class="muted">对照 GB/T 18883 日均 50 µg/m³，仅供参考。数据由空气探头自动上报。</p>
+    <div class="flex flex-wrap items-center gap-2 my-2">
+      <span class="text-sm muted">时间窗：</span>${rangeBtn(60, "近 1 小时")}${rangeBtn(360, "近 6 小时")}${rangeBtn(1440, "近 24 小时")}
+    </div>
+    ${asc.length >= 2 ? airCurveSVG(asc, withPM) : `<div class="py-8 text-center text-sm muted bg-base-200 rounded-box my-2">样本还太少，攒够两条以上自动出曲线。</div>`}
+    <p class="muted mt-2">对照 GB/T 18883 日均 50 µg/m³，仅供参考。数据由空气探头自动上报。</p>
     <div class="overflow-x-auto"><table class="table table-zebra" style="min-width: 36rem;">
       <thead><tr><th>时间</th><th>区域</th><th>温度</th><th>湿度</th><th>PM2.5</th><th>有人</th></tr></thead>
-      <tbody>${rows.slice(0, 40).map((r) => {
+      <tbody>${rows.slice(0, 20).map((r) => {
         const x = r.data || {};
         return `<tr><td>${new Date(r.ts * 1000).toLocaleString()}</td><td><span class="badge badge-ghost">${esc(zoneLabel(r.zone))}</span></td><td>${x.t_c != null ? `${x.t_c} ℃` : "—"}</td><td>${x.rh != null ? `${x.rh} %` : "—"}</td><td>${x.pm25 ?? "—"}</td><td>${x.presence == null ? "—" : (x.presence ? "有人" : "无人")}</td></tr>`;
       }).join("")}</tbody>
     </table></div>
   `);
+  document.querySelectorAll("[data-air-range]").forEach((b) => {
+    b.addEventListener("click", () => {
+      sessionStorage.setItem("pp-air-range", b.dataset.airRange);
+      viewAir();
+    });
+  });
 }
 
 async function viewSettings(me) {
