@@ -547,3 +547,12 @@ dialog.modal:not([open]) { display: none !important; }
    表格/栅格的 min-content 会把整页撑宽；置 0 后由内部 overflow-x-auto 容器接管滚动 */
 .shell > main { min-width: 0; }
 .inv-list { grid-template-columns: repeat(auto-fill, minmax(min(380px, 100%), 1fr)); }
+
+/* 顶栏实底 + 吸顶：避免滚动时内容透出导致文字不可读 */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: oklch(var(--fallback-b1, oklch(var(--b1) / 1)));
+  border-bottom: 1px solid oklch(var(--fallback-b3, oklch(var(--b3) / 0.5)));
+}
