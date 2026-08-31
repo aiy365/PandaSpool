@@ -384,6 +384,33 @@ function paint(me) {
   Promise.resolve(run()).catch(pageError);
 }
 
+function gcodeLabel(s) {
+  const k = String(s || "").toUpperCase();
+  const map = {
+    RUNNING: "打印中", PRINTING: "打印中", PAUSE: "已暂停", PAUSED: "已暂停",
+    SLICING: "切片中", PREPARE: "准备中", PREPARING: "准备中",
+    FINISH: "已完成", FINISHED: "已完成", FAILED: "已失败", IDLE: "空闲",
+  };
+  return map[k] || (k || "空闲");
+}
+function isIdleGcode(s) {
+  return ["IDLE", "FINISH", "FINISHED", "FAILED"].includes(String(s || "").toUpperCase());
+}
+function fmtTemp1(t) {
+  const n = Number(t);
+  if (t == null || Number.isNaN(n)) return "—";
+  return String(Math.round(n * 10) / 10);
+}
+function dedupeName(n) {
+  const p = String(n || "").trim().split(/\s+/).filter(Boolean);
+  return p.filter((t, i) => i === 0 || t !== p[i - 1]).join(" ");
+}
+function zoneLabel(z) {
+  const k = String(z || "").toLowerCase();
+  const map = { room: "房间", chamber: "仓内", enclosure: "仓内" };
+  return map[k] || (z || "—");
+}
+
 async function viewHome() {
   pageLoading("正在加载总览…");
   let d;
@@ -418,10 +445,10 @@ async function viewHome() {
     <div class="masonry-grid">
     ${card(`
       <h2 class="card-title">机台</h2>
-      <p class="mb-2">${mqtt} ${m.connected ? (printing ? `<span class="badge badge-success">打印中 ${m.progress ?? "—"}%</span>` : `<span class="badge badge-ghost">${esc(m.gcode_state || m.stage || "空闲")}</span>`) : ""} ${boost}</p>
+      <p class="mb-2">${mqtt} ${m.connected ? (printing && !isIdleGcode(m.gcode_state) ? `<span class="badge badge-success">打印中 ${m.progress ?? "—"}%</span>` : `<span class="badge badge-ghost">${esc(gcodeLabel(m.gcode_state || m.stage))}</span>`) : ""} ${boost}</p>
       ${m.connected ? `
-        <p>${printing ? `${esc(job || "正在打印")}　剩余 ${esc(remain)} 分钟` : `热床 ${m.bed_temp ?? "—"}°C　喷嘴 ${m.nozzle_temp ?? "—"}°C`}</p>
-        <p class="muted">${printing ? `热床 ${m.bed_temp ?? "—"}°C　喷嘴 ${m.nozzle_temp ?? "—"}°C　层 ${m.layer ?? "—"}/${m.total_layer ?? "—"}` : esc(job)}</p>
+        <p>${printing && !isIdleGcode(m.gcode_state) ? `${job ? `任务：${esc(job)}` : "正在打印"}　剩余 ${esc(remain)} 分钟` : `热床 ${fmtTemp1(m.bed_temp)}°C　喷嘴 ${fmtTemp1(m.nozzle_temp)}°C`}</p>
+        <p class="muted">${printing && !isIdleGcode(m.gcode_state) ? `热床 ${fmtTemp1(m.bed_temp)}°C　喷嘴 ${fmtTemp1(m.nozzle_temp)}°C　层 ${m.layer ?? "—"}/${m.total_layer ?? "—"}` : (job ? `上次任务：${esc(job)}` : "")}</p>
       ` : `
         <div class="py-2 text-center text-sm muted bg-base-200 rounded-box my-2">机器未连接，无法读取温度或任务状态。</div>
       `}
@@ -959,7 +986,7 @@ async function viewProduct(id) {
           <td><input class="input input-bordered input-xs w-16" id="u-${c.id}" type="number" min="0" value="${c.unopened}"></td>
           <td><select class="select select-bordered select-xs" id="o-${c.id}"><option value="0"${c.opened ? "" : " selected"}>无</option><option value="1"${c.opened ? " selected" : ""}>有</option></select></td>
           <td>${c.avg_price ? `${yuan(c.avg_price)} <span class="muted">/${c.buy_qty}盘</span>` : "—"}</td>
-          <td class="join"><button class="btn btn-primary btn-xs join-item" data-syncc="${c.id}">同步</button><button class="btn btn-ghost btn-xs join-item" data-savec="${c.id}">存</button><button class="btn btn-ghost btn-xs join-item" data-delc="${c.id}">删</button></td></tr>`;
+          <td class="join"><button class="btn btn-primary btn-xs join-item" data-syncc="${c.id}">同步</button><button class="btn btn-ghost btn-xs join-item" data-savec="${c.id}" aria-label="保存颜色库存修改" title="保存本行修改">存</button><button class="btn btn-ghost btn-xs join-item text-error" data-delc="${c.id}" aria-label="删除这个颜色" title="删除这个颜色">删</button></td></tr>`;
         }).join("")}</tbody>
       </table></div>
     `)}
@@ -1248,7 +1275,10 @@ async function viewCompare() {
     <h1 class="text-2xl font-bold mb-1">参数横评</h1>
     <p class="text-sm opacity-70 mb-4">已确认条目。同一字段多个值标成冲突，不覆盖。</p>
     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-    ${keys.length === 0 ? "<p>暂无数据</p>" : keys.map((k) => {
+    ${keys.length === 0 ? card(`<h2 class="card-title">还没有可横评的数据</h2>
+      <p class="muted">这里只展示已在产品页「确认」过的参数条目；同一字段有多个说法时会标成冲突并列展示。</p>
+      <p class="muted">先去耗材页打开对应产品，把厂家资料或实测值确认为条目，确认后会自动出现在这里。</p>
+      <div class="card-actions mt-2"><a class="btn btn-sm btn-primary" href="#/materials">去耗材页确认参数</a></div>`) : keys.map((k) => {
       const uniq = new Set(data[k].map((c) => c.value + "|" + c.unit));
       const hit = uniq.size > 1;
       return card(`<h2 class="card-title text-base mb-2">${esc(k)} ${hit ? '<span class="badge badge-error badge-sm">冲突</span>' : ""}</h2>
@@ -1334,7 +1364,7 @@ async function viewMachine() {
     }
     $("#mach-stats").innerHTML = `
       <p>${b.connected ? '<span class="badge badge-success">拓竹 MQTT 已连接</span>' : `<span class="badge badge-error badge-outline">未连接</span> <span class="muted">${esc(b.error || "")}</span>`}
-        ${printing ? `<span class="badge badge-success">打印中</span>` : `<span class="badge badge-ghost">${esc(b.gcode_state || b.stage || "空闲")}</span>`}
+        ${printing && !isIdleGcode(b.gcode_state) ? `<span class="badge badge-success">打印中</span>` : `<span class="badge badge-ghost">${esc(gcodeLabel(b.gcode_state || b.stage))}</span>`}
         ${boost} ${spdStr}</p>
       ${(() => {
           const formatTemp = (t) => t != null ? Math.round(Number(t)) : "—";
@@ -1449,7 +1479,7 @@ async function viewMachine() {
           return (best && minDist < 20000) ? best : null;
         };
         const spoolBadge = (prefix, sp, hex, brand) => {
-          const fname = sp ? (sp.bambu_filament_name || getColorName(sp.color_id)) : getColorName(hex);
+          const fname = sp ? dedupeName(sp.bambu_filament_name) || getColorName(sp.color_id) : getColorName(hex);
           const label = sp ? `[${sp.short_code}] ${fname}` : `${getColorName(hex)}${brand ? " " + brand : ""}`;
           return `<span class="badge badge-outline text-xs" style="border-color:#${String(hex||"888888").substring(0,6)}">${esc(prefix)}: ${esc(label)}</span>`;
         };
@@ -1495,7 +1525,7 @@ async function viewMachine() {
           }
           if (chips.length) amsStr = `<p class="muted mt-1 text-xs">AMS 在位：${chips.join(" ")}</p>`;
         }
-        return `<p class="muted mt-2">层数 ${b.layer ?? "—"} / ${b.total_layer ?? "—"}　${esc(b.subtask || "")}${filamentStr}</p>${amsStr}`;
+        return `<p class="muted mt-2">层数 ${b.layer ?? "—"} / ${b.total_layer ?? "—"}　${(b.subtask || "") ? `任务：${esc(b.subtask)}` : ""}${filamentStr}</p>${amsStr}`;
       })()}
     `;
     let airTs = Number(air.ts);
@@ -1643,10 +1673,13 @@ async function viewAir() {
     <h1 class="card-title">仓外空气</h1>
     <p>最新 PM2.5：<strong>${pm ?? "—"}</strong> µg/m³　<span class="badge ${badge}">${band}</span>
       ${latestTs ? `<span class="${stale ? "text-warning" : "muted"}"> · ${esc(airAgeText(latestTs))}${stale ? "（超过 15 分钟没报）" : ""}</span>` : ""}</p>
-    <p class="muted">对照 GB/T 18883 日均 50 µg/m³，仅供参考。POST /api/ingest/air 上报。</p>
-    <div class="overflow-x-auto"><table class="table table-zebra">
-      <thead><tr><th>时间</th><th>区</th><th>数据</th></tr></thead>
-      <tbody>${rows.slice(0, 40).map((r) => `<tr><td>${new Date(r.ts * 1000).toLocaleString()}</td><td><span class="badge badge-ghost">${esc(r.zone)}</span></td><td><code>${esc(JSON.stringify(r.data))}</code></td></tr>`).join("")}</tbody>
+    <p class="muted">对照 GB/T 18883 日均 50 µg/m³，仅供参考。数据由空气探头自动上报。</p>
+    <div class="overflow-x-auto"><table class="table table-zebra" style="min-width: 36rem;">
+      <thead><tr><th>时间</th><th>区域</th><th>温度</th><th>湿度</th><th>PM2.5</th><th>有人</th></tr></thead>
+      <tbody>${rows.slice(0, 40).map((r) => {
+        const x = r.data || {};
+        return `<tr><td>${new Date(r.ts * 1000).toLocaleString()}</td><td><span class="badge badge-ghost">${esc(zoneLabel(r.zone))}</span></td><td>${x.t_c != null ? `${x.t_c} ℃` : "—"}</td><td>${x.rh != null ? `${x.rh} %` : "—"}</td><td>${x.pm25 ?? "—"}</td><td>${x.presence == null ? "—" : (x.presence ? "有人" : "无人")}</td></tr>`;
+      }).join("")}</tbody>
     </table></div>
   `);
 }
@@ -1809,10 +1842,10 @@ async function viewSettings(me) {
     `)}
     ${card(`
       <h2 class="card-title">空气探头 / AI 令牌</h2>
-      <p>ESP32：<code>POST /api/ingest/air</code>　AI 只读：<code>GET /api/ai/materials</code>　起草：<code>POST /api/ai/drafts</code></p>
-      <p class="muted">Authorization: Bearer 令牌。AI 令牌只能写草稿，不能确认、不能改库存。</p>
-      ${field("空气令牌", inputEl("at", `value="${esc(s.air.token)}"`))}
-      ${field("AI 令牌", inputEl("ait", `value="${esc(s.ai?.token || "")}"`))}
+      <p class="muted">设备端用令牌调以下接口（已脱敏显示，重填新值即轮换）：</p>
+      <p><code>POST /api/ingest/air</code>　<code>GET /api/ai/materials</code>　<code>POST /api/ai/drafts</code>（AI 只能写草稿，不能确认、不能改库存）</p>
+      ${field("空气令牌", inputEl("at", `value="${esc(s.air.token)}" placeholder="留空表示保留原值"`))}
+      ${field("AI 令牌", inputEl("ait", `value="${esc(s.ai?.token || "")}" placeholder="留空表示保留原值"`))}
     `)}
     </div>`;
   const collect = () => ({
@@ -2031,7 +2064,7 @@ async function viewSpools() {
           </thead>
           <tbody id="spools-body">
             ${filtered.map(s => {
-              const fname = s.bambu_filament_name || s.short_code;
+              const fname = dedupeName(s.bambu_filament_name) || s.short_code;
               const hex = (s.color_hex || "").toLowerCase();
               const swatch = /^[0-9a-f]{6}$/.test(hex) ? `<span class="inline-block w-3 h-3 rounded-full border border-base-300 mr-1 align-middle" style="background:#${hex}"></span>` : "";
               const maxW = Math.max(500, Math.round(Number(s.net_weight_g) || 1000));
@@ -2050,9 +2083,9 @@ async function viewSpools() {
                   </select>
                 </td>
                 <td>
-                  <div class="flex items-center gap-1 cursor-pointer hover:bg-base-200 p-1 rounded inline-flex" onclick="window.editWeight(\'${esc(s.id)}\', ${Number(s.net_weight_g) || 0}, ${maxW})">
+                  <div class="flex items-center gap-1 cursor-pointer hover:bg-base-200 p-1 rounded inline-flex" role="button" aria-label="修改重量" title="点击修改重量" onclick="window.editWeight(\'${esc(s.id)}\', ${Number(s.net_weight_g) || 0}, ${maxW})">
                     <span class="font-mono font-bold text-primary text-lg">${s.net_weight_g}</span>
-                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 muted" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 muted" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" /></svg>
                   </div>
                 </td>
                 <td class="text-xs muted hide-on-mobile">${s.last_synced_at ? esc(s.last_synced_at.replace("T", " ").slice(0, 16)) : "从未同步"}</td>

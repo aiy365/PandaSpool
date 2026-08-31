@@ -208,7 +208,19 @@ func (s *Server) spoolCloudSync(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(map[string]any{"ok": true, "specs": specs})
 }
 
+// composeSpoolName 组合料盘显示名：云端规格名通常已含颜色词（如 "PETG 透明"），
+// 再拼用户颜色名时会得到 "PETG 透明 透明"，这里做去重。
+func composeSpoolName(base, color string) string {
+	base = strings.TrimSpace(base)
+	color = strings.TrimSpace(color)
+	if color == "" || strings.Contains(base, color) {
+		return base
+	}
+	return strings.TrimSpace(base + " " + color)
+}
+
 func vendorOf(f *bambu.CloudFilament) string {
+
 	if v := strings.TrimSpace(f.FilamentVendor); v != "" {
 		return v
 	}
@@ -287,7 +299,7 @@ func (s *Server) spoolIntake(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		name := bambu.TruncateRunes(strings.TrimSpace(baseName+" "+req.ColorName), 40)
+		name := bambu.TruncateRunes(composeSpoolName(baseName, req.ColorName), 40)
 		f := bambu.CloudFilament{
 			FilamentID:   filamentID,
 			FilamentName: name,
@@ -774,7 +786,7 @@ func (s *Server) spoolSyncColor(w http.ResponseWriter, r *http.Request) {
 			jsonError(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		name := bambu.TruncateRunes(strings.TrimSpace(baseName+" "+color.Name), 40)
+		name := bambu.TruncateRunes(composeSpoolName(baseName, color.Name), 40)
 		status := "unopened"
 		if i >= addUn { // 未开封的建完后，剩下的补开封盘
 			status = "opened"
