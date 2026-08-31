@@ -1553,7 +1553,7 @@ async function viewMachine() {
             const ezW = ezvizDiv.clientWidth;
             const rot = d.ezviz?.rotation || "0";
             const isPortrait = (rot === "90" || rot === "-90");
-            const finalH = isPortrait ? Math.round(ezW * 13 / 9) : Math.round(ezW * 9 / 16);
+            const finalH = isPortrait ? Math.round(ezW * 16 / 9) : Math.round(ezW * 9 / 16);
             
             const cropVals = (d.ezviz?.crop || "0,0,0,0").split(",").map(x => Number(x) || 0);
             const cT = Math.max(0, Math.min(99, cropVals[0]));
@@ -1563,7 +1563,7 @@ async function viewMachine() {
             const fW = 1 - (cL + cR) / 100;
             const fH = 1 - (cT + cB) / 100;
             
-            const baseAspect = isPortrait ? 9/13 : 16/9;
+            const baseAspect = isPortrait ? 9/16 : 16/9;
             const cropAspect = baseAspect * (fW / fH);
             const displayH = Math.round(ezW / cropAspect);
             
