@@ -994,19 +994,24 @@ async function viewProduct(id) {
     `)}
     ${card(`
       <h2 class="card-title">物理料盘 <span class="badge badge-ghost">${productSpools.length}</span></h2>
-      <p class="muted text-sm">颜色行【同步】生成的编号记录，一键同步后实物打标即可对上。称重与报废去「料盘」页操作。</p>
+      <p class="muted text-sm">颜色行【同步】生成的编号记录。状态、称重、报废直接在下表操作，不用去料盘页。</p>
       ${productSpools.length ? `<div class="overflow-x-auto mt-2"><table class="table table-sm table-zebra">
-        <thead><tr><th>编号</th><th>颜色</th><th>状态</th><th>重量(g)</th><th>同步时间</th></tr></thead>
-        <tbody>${productSpools.map(sp => {
+        <thead><tr><th>编号</th><th>颜色</th><th>状态</th><th>重量(g)</th><th>同步时间</th><th>操作</th></tr></thead>
+        <tbody id="pspools-body">${productSpools.map(sp => {
           const c = (p.colors || []).find(c => c.id === sp.color_id);
           const hex = (sp.color_hex || "").toLowerCase();
           const sw = /^[0-9a-f]{6}$/.test(hex) ? `<span class="inline-block w-2.5 h-2.5 rounded-full mr-1 align-middle" style="background:#${hex}"></span>` : "";
-          const st = sp.status === "unopened" ? "未开封" : sp.status === "opened" ? "已开封" : "已用完";
+          const maxW = Math.max(500, Math.round(Number(sp.net_weight_g) || 1000));
           return `<tr><td><span class="badge badge-primary font-mono badge-sm">${esc(sp.short_code)}</span></td>
             <td>${sw}${esc(c ? c.name : "—")}</td>
-            <td>${st}</td>
-            <td>${sp.net_weight_g}</td>
-            <td class="muted text-xs">${sp.last_synced_at ? esc(sp.last_synced_at.replace("T", " ").slice(0, 16)) : "—"}</td></tr>`;
+            <td><select class="select select-bordered select-xs" data-ps="${sp.id}" data-psact="status">
+              <option value="unopened"${sp.status === "unopened" ? " selected" : ""}>未开封</option>
+              <option value="opened"${sp.status === "opened" ? " selected" : ""}>已开封</option>
+              <option value="depleted"${sp.status === "depleted" ? " selected" : ""}>已用完</option>
+            </select></td>
+            <td><span class="font-mono cursor-pointer hover:bg-base-200 p-1 rounded inline-flex items-center gap-1" role="button" aria-label="修改重量" title="点击修改重量" onclick="window.editWeight('${esc(sp.id)}', ${Number(sp.net_weight_g) || 0}, ${maxW})">${sp.net_weight_g}<svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3 muted" aria-hidden="true" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg></span></td>
+            <td class="muted text-xs">${sp.last_synced_at ? esc(sp.last_synced_at.replace("T", " ").slice(0, 16)) : "—"}</td>
+            <td><button class="btn btn-error btn-xs btn-outline" data-ps="${sp.id}" data-psact="delete">报废</button></td></tr>`;
         }).join("")}</tbody></table></div>`
       : `<p class="muted text-sm mt-2">还没有料盘。在上方颜色行点【同步】，即按台账数量到拓竹云端建档并生成编号。</p>`}
     `)}
@@ -1198,6 +1203,21 @@ async function viewProduct(id) {
     const btn = e.target.closest("button");
     if (!btn) return;
     try {
+      if (btn.dataset.psact === "delete") {
+        const sid = btn.dataset.ps;
+        window.confirmDanger("确定要报废这个料盘吗？此操作将从本地和云端同步删除。", async () => {
+          btn.disabled = true;
+          try {
+            await api("/api/spools/" + sid, { method: "DELETE" });
+            toast("已报废，云端条目已删除", "success");
+            viewProduct(id);
+          } catch (ex) {
+            toast(ex.message, "error");
+            btn.disabled = false;
+          }
+        });
+        return;
+      }
       if (btn.dataset.syncc) {
         const cid = btn.dataset.syncc;
         const row = (p.colors || []).find((c) => c.id === cid);
@@ -1262,6 +1282,21 @@ async function viewProduct(id) {
         viewProduct(id);
       }
     } catch (ex) { toast(ex.message, "error"); }
+  };
+  $("#page").onchange = async (e) => {
+    const sel = e.target.closest("select[data-psact='status']");
+    if (!sel) return;
+    const sid = sel.dataset.ps;
+    const val = sel.value;
+    sel.disabled = true;
+    try {
+      await api("/api/spools/" + sid + "/status", { method: "PUT", body: { status: val } });
+      toast(val === "depleted" ? "已用完，云端条目已删除" : "状态已更新", "success");
+      viewProduct(id);
+    } catch (ex) {
+      toast(ex.message, "error");
+      sel.disabled = false;
+    }
   };
 }
 
@@ -2289,7 +2324,7 @@ window.editWeight = (spoolId, currentW, maxW) => {
       await api("/api/spools/" + spoolId + "/weight", { method: "PUT", body: { net_weight_g: val } });
       toast("重量已同步至拓竹云端", "success");
       document.getElementById('modal-weight').close();
-      if (location.hash === '#/spools') window.onhashchange();
+      if (location.hash === '#/spools' || location.hash.startsWith('#/materials/')) window.onhashchange();
     } catch (ex) {
       toast(ex.message, "error");
     } finally {

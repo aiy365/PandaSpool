@@ -282,7 +282,12 @@ func (s *Server) spoolIntake(w http.ResponseWriter, r *http.Request) {
 	if baseName == "" {
 		baseName = spec.FilamentID
 	}
-	netWeight := spec.NetWeight
+	// 满盘净重取规格的上限（totalNetWeight）；netWeight 是云端"当前余量"，
+	// 新盘入库应为满盘。两条建档路径同规则。
+	netWeight := spec.TotalNetWeight
+	if netWeight <= 0 {
+		netWeight = spec.NetWeight
+	}
 	if netWeight <= 0 {
 		netWeight = 1000
 	}
@@ -301,11 +306,13 @@ func (s *Server) spoolIntake(w http.ResponseWriter, r *http.Request) {
 		}
 		name := bambu.TruncateRunes(composeSpoolName(baseName, req.ColorName), 40)
 		f := bambu.CloudFilament{
-			FilamentID:   filamentID,
-			FilamentName: name,
-			Color:        colorHex + "FF",
-			NetWeight:    netWeight,
-			Note:         fmt.Sprintf("PandaSpool %s %s", code, req.ColorName),
+			FilamentID:     filamentID,
+			FilamentVendor: spec.FilamentVendor,
+			FilamentName:   name,
+			Color:          colorHex + "FF",
+			NetWeight:      netWeight,
+			TotalNetWeight: netWeight,
+			Note:           fmt.Sprintf("PandaSpool %s %s", code, req.ColorName),
 		}
 		cloudID, err := ad.CreateFilament(f)
 		if err != nil {
@@ -444,11 +451,13 @@ func (s *Server) spoolCloudRepair(w http.ResponseWriter, r *http.Request) {
 		colorHex = "a0a0a0"
 	}
 	cloudID, err := ad.CreateFilament(bambu.CloudFilament{
-		FilamentID:   sp.BambuFilamentID,
-		FilamentName: sp.BambuFilamentName,
-		Color:        colorHex + "FF",
-		NetWeight:    int(sp.NetWeightG),
-		Note:         fmt.Sprintf("PandaSpool %s", sp.ShortCode),
+		FilamentID:     sp.BambuFilamentID,
+		FilamentVendor: sp.BambuVendor,
+		FilamentName:   sp.BambuFilamentName,
+		Color:          colorHex + "FF",
+		NetWeight:      int(sp.NetWeightG),
+		TotalNetWeight: int(sp.NetWeightG),
+		Note:           fmt.Sprintf("PandaSpool %s", sp.ShortCode),
 	})
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadGateway)
@@ -770,7 +779,10 @@ func (s *Server) spoolSyncColor(w http.ResponseWriter, r *http.Request) {
 	if baseName == "" {
 		baseName = spec.FilamentID
 	}
-	netWeight := spec.NetWeight
+	netWeight := spec.TotalNetWeight
+	if netWeight <= 0 {
+		netWeight = spec.NetWeight
+	}
 	if netWeight <= 0 {
 		netWeight = 1000
 	}
@@ -792,11 +804,13 @@ func (s *Server) spoolSyncColor(w http.ResponseWriter, r *http.Request) {
 			status = "opened"
 		}
 		cloudID, err := ad.CreateFilament(bambu.CloudFilament{
-			FilamentID:   filamentID,
-			FilamentName: name,
-			Color:        colorHex + "FF",
-			NetWeight:    netWeight,
-			Note:         fmt.Sprintf("PandaSpool %s %s", code, color.Name),
+			FilamentID:     filamentID,
+			FilamentVendor: spec.FilamentVendor,
+			FilamentName:   name,
+			Color:          colorHex + "FF",
+			NetWeight:      netWeight,
+			TotalNetWeight: netWeight,
+			Note:           fmt.Sprintf("PandaSpool %s %s", code, color.Name),
 		})
 		if err != nil {
 			if i > 0 {
