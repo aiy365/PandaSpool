@@ -153,6 +153,7 @@ func (s *Server) cloudAdapter() (*bambu.CloudAdapter, error) {
 }
 
 // spoolNoteRe 从云端备注里提取 PandaSpool 短编号（如 pm001）。
+// 备注格式：<编号> <颜色> <站点名>（历史格式 "PandaSpool <编号> <颜色>" 同样命中）。
 var spoolNoteRe = regexp.MustCompile(`(?i)\b([a-z]{1,3}\d{3,4})\b`)
 
 func SpoolCodeFromNote(note string) string {
@@ -277,6 +278,10 @@ func (s *Server) spoolIntake(w http.ResponseWriter, r *http.Request) {
 		colorHex = colorHexFromName(req.ColorName)
 	}
 	vendor := vendorOf(spec)
+	siteName := strings.TrimSpace(cfg.Site.Title)
+	if siteName == "" {
+		siteName = "PandaSpool"
+	}
 	prefix := strings.ToLower(getInitial(vendor) + getInitial(req.ColorName))
 	baseName := strings.TrimSpace(spec.FilamentName)
 	if baseName == "" {
@@ -312,7 +317,7 @@ func (s *Server) spoolIntake(w http.ResponseWriter, r *http.Request) {
 			Color:          colorHex + "FF",
 			NetWeight:      netWeight,
 			TotalNetWeight: netWeight,
-			Note:           fmt.Sprintf("PandaSpool %s %s", code, req.ColorName),
+			Note:           fmt.Sprintf("%s %s %s", code, req.ColorName, siteName),
 		}
 		cloudID, err := ad.CreateFilament(f)
 		if err != nil {
@@ -435,6 +440,10 @@ func (s *Server) spoolCloudRepair(w http.ResponseWriter, r *http.Request) {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	siteName := strings.TrimSpace(s.st.LoadSettings().Site.Title)
+	if siteName == "" {
+		siteName = "PandaSpool"
+	}
 	if sp.BambuCloudID > 0 {
 		filaments, err := ad.ListFilaments()
 		if err == nil {
@@ -457,7 +466,7 @@ func (s *Server) spoolCloudRepair(w http.ResponseWriter, r *http.Request) {
 		Color:          colorHex + "FF",
 		NetWeight:      int(sp.NetWeightG),
 		TotalNetWeight: int(sp.NetWeightG),
-		Note:           fmt.Sprintf("PandaSpool %s", sp.ShortCode),
+		Note:           fmt.Sprintf("%s %s", sp.ShortCode, siteName),
 	})
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadGateway)
@@ -774,6 +783,10 @@ func (s *Server) spoolSyncColor(w http.ResponseWriter, r *http.Request) {
 	cfg := s.st.LoadSettings()
 	colorHex := colorHexFromName(color.Name)
 	vendor := vendorOf(spec)
+	siteName := strings.TrimSpace(cfg.Site.Title)
+	if siteName == "" {
+		siteName = "PandaSpool"
+	}
 	prefix := strings.ToLower(getInitial(vendor) + getInitial(color.Name))
 	baseName := strings.TrimSpace(spec.FilamentName)
 	if baseName == "" {
@@ -810,7 +823,7 @@ func (s *Server) spoolSyncColor(w http.ResponseWriter, r *http.Request) {
 			Color:          colorHex + "FF",
 			NetWeight:      netWeight,
 			TotalNetWeight: netWeight,
-			Note:           fmt.Sprintf("PandaSpool %s %s", code, color.Name),
+			Note:           fmt.Sprintf("%s %s %s", code, color.Name, siteName),
 		})
 		if err != nil {
 			if i > 0 {

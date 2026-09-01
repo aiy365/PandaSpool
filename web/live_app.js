@@ -1106,12 +1106,14 @@ async function viewProduct(id) {
     toast("产品已保存", "success");
     viewProduct(id);
   });
-  $("#delp").onclick = (e) => busy(e.currentTarget, async () => {
-    if (!confirm("删除这个产品，以及颜色、库存和参数？不能恢复。")) return;
-    await api("/api/products/" + id, { method: "DELETE" });
-    toast("已删除产品", "success");
-    location.hash = "#/materials";
-  });
+  $("#delp").onclick = (e) => {
+    const btnEl = e.currentTarget;
+    window.confirmDanger("删除这个产品，以及颜色、库存和参数？此操作不能恢复。", async () => {
+      await api("/api/products/" + id, { method: "DELETE" });
+      toast("已删除产品", "success");
+      location.hash = "#/materials";
+    });
+  };
   $("#addc").onclick = (e) => busy(e.currentTarget, async () => {
     const name = $("#cn").value.trim();
     const hit = name ? (p.colors || []).find((c) => c.name === name) : null;
@@ -1224,21 +1226,22 @@ async function viewProduct(id) {
         if (!row) return;
         const total = Number(row.unopened || 0) + (Number(row.opened || 0) > 0 ? 1 : 0);
         if (!total) { toast("这行台账是 0 盘，先把未开封数量填上再同步", "warning"); return; }
-        if (!confirm(`将按台账「未开封 ${row.unopened || 0} + 开封 ${row.opened > 0 ? 1 : 0}」去拓竹云端建档并生成编号（已有盘只补差额），继续？`)) return;
-        btn.disabled = true;
-        try {
-          const res = await api("/api/spools/sync-color", { method: "POST", body: { color_id: cid } });
-          if (res.codes && res.codes.length) {
-            toast(`已建档 ${res.codes.length} 盘，编号：${res.codes.join(", ")}，请写到盘上`, "success", { sticky: true });
-          } else {
-            toast(res.message || "台账与料盘已一致", "info");
+        window.confirmDanger(`将按台账「未开封 ${row.unopened || 0} + 开封 ${row.opened > 0 ? 1 : 0}」去拓竹云端建档并生成编号（已有盘只补差额），继续？`, async () => {
+          btn.disabled = true;
+          try {
+            const res = await api("/api/spools/sync-color", { method: "POST", body: { color_id: cid } });
+            if (res.codes && res.codes.length) {
+              toast(`已建档 ${res.codes.length} 盘，编号：${res.codes.join(", ")}，请写到盘上`, "success", { sticky: true });
+            } else {
+              toast(res.message || "台账与料盘已一致", "info");
+            }
+            viewProduct(id);
+          } catch (ex) {
+            toast(ex.message, "error");
+          } finally {
+            btn.disabled = false;
           }
-          viewProduct(id);
-        } catch (ex) {
-          toast(ex.message, "error");
-        } finally {
-          btn.disabled = false;
-        }
+        });
         return;
       }
       if (btn.dataset.savec) {
@@ -1253,16 +1256,18 @@ async function viewProduct(id) {
         viewProduct(id);
       }
       if (btn.dataset.delc) {
-        if (!confirm("删除这个颜色和它的库存账？不能恢复。")) return;
-        await api("/api/colors?id=" + btn.dataset.delc, { method: "DELETE" });
-        toast("已删颜色", "success");
-        viewProduct(id);
+        window.confirmDanger("删除这个颜色和它的库存账？此操作不能恢复。", async () => {
+          await api("/api/colors?id=" + btn.dataset.delc, { method: "DELETE" });
+          toast("已删颜色", "success");
+          viewProduct(id);
+        });
       }
       if (btn.dataset.delk) {
-        if (!confirm("删除这条参数？")) return;
-        await api("/api/claims?id=" + btn.dataset.delk, { method: "DELETE" });
-        toast("已删参数", "success");
-        viewProduct(id);
+        window.confirmDanger("删除这条参数？", async () => {
+          await api("/api/claims?id=" + btn.dataset.delk, { method: "DELETE" });
+          toast("已删参数", "success");
+          viewProduct(id);
+        });
       }
       if (btn.dataset.ok) { await api("/api/claims/review", { method: "POST", body: { id: btn.dataset.ok, status: "confirmed" } }); toast("已确认", "success"); viewProduct(id); }
       if (btn.dataset.edit) {
@@ -1270,16 +1275,18 @@ async function viewProduct(id) {
         if (d) openDraftEdit(d);
       }
       if (btn.dataset.ibx) {
-        if (!confirm("删除这张图？")) return;
-        await api("/api/inbox/" + btn.dataset.ibx, { method: "DELETE" });
-        toast("已删图片", "success");
-        viewProduct(id);
+        window.confirmDanger("删除这张图？", async () => {
+          await api("/api/inbox/" + btn.dataset.ibx, { method: "DELETE" });
+          toast("已删图片", "success");
+          viewProduct(id);
+        });
       }
       if (btn.dataset.pdel) {
-        if (!confirm("删除这个预设？")) return;
-        await api("/api/presets/" + btn.dataset.pdel, { method: "DELETE" });
-        toast("已删预设", "success");
-        viewProduct(id);
+        window.confirmDanger("删除这个预设？", async () => {
+          await api("/api/presets/" + btn.dataset.pdel, { method: "DELETE" });
+          toast("已删预设", "success");
+          viewProduct(id);
+        });
       }
     } catch (ex) { toast(ex.message, "error"); }
   };
