@@ -1151,7 +1151,11 @@ func (s *Server) ingestAir(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
-	w.Write([]byte(`{"status":"ok"}`))
+	// 带上打印状态：空气节点据此做动态采样（打印中高频、空闲降频省激光）
+	st := s.bambu.Status()
+	gcode, _ := st["gcode_state"].(string)
+	stage, _ := st["stage"].(string)
+	w.Write([]byte(`{"status":"ok","printing":` + fmt.Sprintf("%v", bambu.PrintingFromState(gcode, stage)) + `}`))
 }
 
 // ---- 通知 ----
