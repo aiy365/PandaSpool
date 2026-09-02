@@ -1807,11 +1807,12 @@ async function viewAir() {
     </div>
     ${asc.length >= 2 ? airCurveSVG(asc, withPM) : `<div class="py-8 text-center text-sm muted bg-base-200 rounded-box my-2">样本还太少，攒够两条以上自动出曲线。</div>`}
     <p class="muted mt-2">对照 GB/T 18883 日均 50 µg/m³，仅供参考。数据由空气探头自动上报。</p>
-    <div class="overflow-x-auto"><table class="table table-zebra" style="min-width: 36rem;">
-      <thead><tr><th>时间</th><th>区域</th><th>温度</th><th>湿度</th><th>PM2.5</th><th>有人</th></tr></thead>
+    <div class="overflow-x-auto"><table class="table table-zebra" style="min-width: 42rem;">
+      <thead><tr><th>时间</th><th>区域</th><th>温度</th><th>湿度</th><th>PM2.5</th><th>有人</th><th>打印机</th></tr></thead>
       <tbody>${rows.slice(0, 20).map((r) => {
         const x = r.data || {};
-        return `<tr><td>${new Date(r.ts * 1000).toLocaleString()}</td><td><span class="badge badge-ghost">${esc(zoneLabel(r.zone))}</span></td><td>${x.t_c != null ? `${x.t_c} ℃` : "—"}</td><td>${x.rh != null ? `${x.rh} %` : "—"}</td><td>${x.pm25 ?? "—"}</td><td>${x.presence == null ? "—" : (x.presence ? "有人" : "无人")}</td></tr>`;
+        const pr = x.printing == null ? "—" : (x.printing ? '<span class="badge badge-success badge-sm">打印中</span>' : '<span class="badge badge-ghost badge-sm">空闲</span>');
+        return `<tr><td>${new Date(r.ts * 1000).toLocaleString()}</td><td><span class="badge badge-ghost">${esc(zoneLabel(r.zone))}</span></td><td>${x.t_c != null ? `${x.t_c} ℃` : "—"}</td><td>${x.rh != null ? `${x.rh} %` : "—"}</td><td>${x.pm25 ?? "—"}</td><td>${x.presence == null ? "—" : (x.presence ? "有人" : "无人")}</td><td>${pr}${x.filament ? `<div class="text-xs muted">${esc(x.filament)}</div>` : ""}</td></tr>`;
       }).join("")}</tbody>
     </table></div>
   `);
