@@ -1698,80 +1698,86 @@ async function viewMachine() {
   }, 15000);
 }
 
-// 空气趋势曲线（纯 SVG，无第三方库）：温度左轴、湿度右轴，断点自动分段。
-function airCurveSVG(asc, withPM) {
-  const W = 860, H = 250, L = 46, R = 46, T = 14, B = 26;
-  const iw = W - L - R, ih = H - T - B;
-  const t0 = asc[0].ts, t1 = asc[asc.length - 1].ts;
-  const span = Math.max(1, t1 - t0);
-  const X = (ts) => L + ((ts - t0) / span) * iw;
-  const values = (k) => asc.map((r) => (r.data && r.data[k] != null ? Number(r.data[k]) : null));
-  const bounds = (vals) => {
-    const vs = vals.filter((v) => v != null);
-    let lo = Math.min(...vs), hi = Math.max(...vs);
-    if (lo === hi) { lo -= 1; hi += 1; }
-    const pad = (hi - lo) * 0.1;
-    return [Math.floor(lo - pad), Math.ceil(hi + pad)];
-  };
-  const path = (vals, lo, hi) => {
-    const stride = Math.max(1, Math.floor(vals.length / 400));
-    let d = "", pen = false;
-    vals.forEach((v, i) => {
-      if (v == null) { pen = false; return; }
-      if (i % stride !== 0 && i !== vals.length - 1) return;
-      d += (pen ? "L" : "M") + X(asc[i].ts).toFixed(1) + " " + (T + ih - ((v - lo) / (hi - lo)) * ih).toFixed(1) + " ";
-      pen = true;
-    });
-    return d.trim();
-  };
-  const fmtClock = (ts) => new Date(ts * 1000).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+// ===== 空气趋势图（ECharts，vendor 单文件无构建）=====
+// 指标注册表：ENS160+AHT21 到货后固件开始上报 tvoc / eco2（AHT21 可加 aht21_t/aht21_rh）
+// 字段时，图例与曲线会自动出现——这就是预留的数据空位，除本表外无需改任何代码。
+const AIR_METRICS = [
+  { key: "t_c",  label: "温度",  unit: "℃",   color: "#e8703a", grid: 0 },
+  { key: "rh",   label: "湿度",  unit: "%",    color: "#4f8ff9", grid: 0 },
+  { key: "tvoc", label: "TVOC", unit: "ppb",  color: "#9a6df2", grid: 1, from: "ENS160" },
+  { key: "eco2", label: "eCO₂", unit: "ppm",  color: "#0fa3a3", grid: 1, from: "ENS160" },
+];
+const AIR_PM_SERIES = [
+  { key: "pm25", label: "PM2.5", unit: "µg/m³", color: "#8957e5" },
+  { key: "pm1",  label: "PM1.0", unit: "µg/m³", color: "#8a94a6" },
+  { key: "pm10", label: "PM10",  unit: "µg/m³", color: "#c97b7b" },
+];
 
-  const tV = values("t_c"), hV = values("rh");
-  const [tLo, tHi] = bounds(tV);
-  const tStep = (tHi - tLo) / 4;
-  const tLab = (f) => (tStep < 1 ? (tLo + (tHi - tLo) * f).toFixed(1) : Math.round(tLo + (tHi - tLo) * f));
-  let grid = "", yLabels = "", xLabels = "";
-  for (let f = 0; f <= 4; f++) {
-    const y = T + ih * (1 - f / 4);
-    grid += `<line x1="${L}" y1="${y}" x2="${W - R}" y2="${y}" stroke="currentColor" stroke-opacity="0.12" />`;
-    yLabels += `<text x="${L - 6}" y="${y + 4}" text-anchor="end" font-size="11" fill="#e8703a" opacity="0.85">${tLab(f / 4)}°</text>`;
-    yLabels += `<text x="${W - R + 6}" y="${y + 4}" font-size="11" fill="#4f8ff9" opacity="0.85">${Math.round(100 * (f / 4))}%</text>`;
-  }
-  for (let f = 0; f <= 3; f++) {
-    const ts = t0 + span * (f / 3);
-    xLabels += `<text x="${X(ts).toFixed(1)}" y="${H - 8}" text-anchor="${f === 0 ? "start" : f === 3 ? "end" : "middle"}" font-size="11" fill="currentColor" opacity="0.55">${fmtClock(ts)}</text>`;
-  }
-  const stats = (vals, unit) => {
-    const vs = vals.filter((v) => v != null);
-    if (!vs.length) return "—";
-    return `${vs[vs.length - 1]}${unit}（低 ${Math.min(...vs)} / 高 ${Math.max(...vs)}）`;
+function airHas(asc, key) {
+  return asc.some((r) => r.data && r.data[key] != null);
+}
+function airPairs(asc, key) {
+  return asc.filter((r) => r.data && r.data[key] != null).map((r) => [r.ts * 1000, r.data[key]]);
+}
+
+function airStatsHtml(asc) {
+  const bit = (m) => {
+    const vs = asc.map((r) => (r.data && r.data[m.key] != null ? Number(r.data[m.key]) : null)).filter((v) => v != null);
+    if (!vs.length) return "";
+    return `<span><b style="color:${m.color}">●</b> ${m.label}：${vs[vs.length - 1]}${m.unit}（低 ${Math.min(...vs)} / 高 ${Math.max(...vs)}）</span>`;
   };
-  let pm = "";
-  if (withPM) {
-    const pV = values("pm25").map((v) => (v == null ? null : v));
-    const [pLo, pHi] = bounds(pV);
-    let pmGrid = "";
-    for (let f = 0; f <= 2; f++) {
-      const y = T + ih * (1 - f / 2);
-      pmGrid += `<line x1="${L}" y1="${y}" x2="${W - R}" y2="${y}" stroke="currentColor" stroke-opacity="0.12" />` +
-        `<text x="${L - 6}" y="${y + 4}" text-anchor="end" font-size="11" fill="#9a6df2" opacity="0.85">${Math.round(pLo + (pHi - pLo) * (f / 2))}</text>`;
-    }
-    pm = `<p class="text-sm muted mt-2">PM2.5（µg/m³）：${stats(pV, "")}</p>
-      <svg viewBox="0 0 ${W} 120" width="100%" role="img" aria-label="PM2.5 趋势" style="color:var(--bc)">
-        <line x1="${L}" y1="${T + ih}" x2="${W - R}" y2="${T + ih}" stroke="currentColor" stroke-opacity="0.2" />
-        ${pmGrid}<path d="${path(pV, pLo, pHi)}" fill="none" stroke="#9a6df2" stroke-width="2" />
-      </svg>`;
+  const parts = AIR_METRICS.map(bit).concat(AIR_PM_SERIES.filter((m) => airHas(asc, m.key)).map(bit));
+  return parts.filter(Boolean).join("　");
+}
+
+function airChartOption(asc) {
+  const dark = document.documentElement.getAttribute("data-theme") === "dark";
+  const txt = dark ? "#b8b8b8" : "#555";
+  const split = dark ? "rgba(255,255,255,0.10)" : "rgba(0,0,0,0.08)";
+  const xBase = { type: "time", axisLabel: { color: txt, hideOverlap: true }, axisLine: { lineStyle: { color: split } }, splitLine: { show: false } };
+  // 打印会话色带预留：/api/sessions 上线后把 [{xAxis:[startMs,endMs], name:"打印"}] 填进 window.__printBands
+  const bands = Array.isArray(window.__printBands) ? window.__printBands : [];
+  const markArea = bands.length ? {
+    silent: true, itemStyle: { color: "rgba(230,140,0,0.10)" },
+    label: { show: true, position: "insideTop", color: "rgba(180,110,0,0.85)", fontSize: 10 },
+    data: bands,
+  } : null;
+  const line = (m, grid, yIdx) => ({
+    name: m.label, type: "line", xAxisIndex: grid, yAxisIndex: yIdx,
+    data: airPairs(asc, m.key), showSymbol: false, connectNulls: false, sampling: "lttb",
+    lineStyle: { width: 2, color: m.color }, itemStyle: { color: m.color },
+    emphasis: { focus: "series" }, tooltip: { valueFormatter: (v) => `${v} ${m.unit}` },
+  });
+  const mainSeries = AIR_METRICS.filter((m) => m.grid === 0 && airHas(asc, m.key)).map((m) => line(m, 0, m.key === "t_c" ? 0 : 1));
+  const pmSeries = AIR_PM_SERIES.filter((m) => airHas(asc, m.key)).map((m) => line(m, 1, 2));
+  if (markArea) {
+    if (mainSeries.length) mainSeries[0].markArea = markArea;
+    if (pmSeries.length) pmSeries[0].markArea = markArea;
   }
-  return `<div class="flex flex-wrap gap-4 text-sm mb-1">
-      <span><span style="color:#e8703a">●</span> 温度：${stats(tV, "℃")}</span>
-      <span><span style="color:#4f8ff9">●</span> 湿度：${stats(hV, "%")}</span>
-      ${withPM ? `<span><span style="color:#9a6df2">●</span> PM2.5 见下图</span>` : ""}
-    </div>
-    <svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="温湿度趋势曲线" style="color:var(--bc)">
-      ${grid}${yLabels}${xLabels}
-      <path d="${path(hV, 0, 100)}" fill="none" stroke="#4f8ff9" stroke-width="2" />
-      <path d="${path(tV, tLo, tHi)}" fill="none" stroke="#e8703a" stroke-width="2" />
-    </svg>${pm}`;
+  const yAxes = [
+    { type: "value", scale: true, position: "left", axisLabel: { color: "#e8703a", formatter: "{value}°" }, splitLine: { lineStyle: { color: split } } },
+    { type: "value", min: 0, max: 100, position: "right", axisLabel: { color: "#4f8ff9", formatter: "{value}%" }, splitLine: { show: false } },
+    { type: "value", min: 0, position: "left", gridIndex: 1, axisLabel: { color: "#8957e5" }, splitLine: { lineStyle: { color: split } } },
+  ];
+  let offset = 0;
+  if (airHas(asc, "tvoc")) { yAxes.push({ type: "value", scale: true, position: "right", gridIndex: 1, name: "ppb", nameTextStyle: { color: txt }, axisLabel: { color: "#9a6df2" }, splitLine: { show: false }, offset }); offset += 34; }
+  if (airHas(asc, "eco2")) { yAxes.push({ type: "value", scale: true, position: "right", gridIndex: 1, name: "ppm", nameTextStyle: { color: txt }, axisLabel: { color: "#0fa3a3" }, splitLine: { show: false }, offset }); }
+  return {
+    backgroundColor: "transparent",
+    legend: { top: 0, textStyle: { color: txt }, icon: "round", itemWidth: 14, itemHeight: 4 },
+    tooltip: { trigger: "axis", axisPointer: { type: "cross", label: { backgroundColor: dark ? "#333" : "#6a7985" } } },
+    grid: [
+      { left: 58, right: 58 + offset * 0, top: 34, height: "50%" },
+      { left: 58, right: 58 + offset, top: "70%", height: "17%" },
+    ],
+    xAxis: [xBase, { ...xBase, gridIndex: 1, axisLabel: { show: false } }],
+    yAxis: yAxes,
+    dataZoom: [
+      { type: "inside", xAxisIndex: [0, 1] },
+      { type: "slider", xAxisIndex: [0, 1], bottom: 2, height: 16, borderColor: split },
+    ],
+    series: [...mainSeries, ...pmSeries],
+  };
 }
 
 async function viewAir() {
@@ -1796,7 +1802,7 @@ async function viewAir() {
   const stale = latestN ? (Date.now() / 1000 - latestN) > 15 * 60 : false;
   // 曲线只取与最新样本同区域的数据，按时间升序
   const asc = rows.filter((r) => r.zone === latest?.zone).slice().reverse();
-  const withPM = asc.some((r) => r.data && r.data.pm25 != null);
+  if (window.__airChart) { window.__airChart.dispose(); window.__airChart = null; }
   const rangeBtn = (v, label) => `<button type="button" class="btn btn-xs ${range === v ? "btn-primary" : "btn-ghost"}" data-air-range="${v}">${label}</button>`;
   $("#page").innerHTML = card(`
     <h1 class="card-title">仓外空气</h1>
@@ -1805,7 +1811,8 @@ async function viewAir() {
     <div class="flex flex-wrap items-center gap-2 my-2">
       <span class="text-sm muted">时间窗：</span>${rangeBtn(60, "近 1 小时")}${rangeBtn(360, "近 6 小时")}${rangeBtn(1440, "近 24 小时")}
     </div>
-    ${asc.length >= 2 ? airCurveSVG(asc, withPM) : `<div class="py-8 text-center text-sm muted bg-base-200 rounded-box my-2">样本还太少，攒够两条以上自动出曲线。</div>`}
+    ${asc.length >= 2 ? `<div id="air-stats" class="flex flex-wrap gap-x-4 gap-y-1 text-sm mb-1">${airStatsHtml(asc)}</div>
+      <div id="air-chart" style="height:440px"></div>` : `<div class="py-8 text-center text-sm muted bg-base-200 rounded-box my-2">样本还太少，攒够两条以上自动出曲线。</div>`}
     <p class="muted mt-2">对照 GB/T 18883 日均 50 µg/m³，仅供参考。数据由空气探头自动上报。</p>
     <div class="overflow-x-auto"><table class="table table-zebra" style="min-width: 42rem;">
       <thead><tr><th>时间</th><th>区域</th><th>温度</th><th>湿度</th><th>PM2.5</th><th>有人</th><th>打印机</th></tr></thead>
@@ -1822,6 +1829,15 @@ async function viewAir() {
       viewAir();
     });
   });
+  if (asc.length >= 2 && window.echarts) {
+    const el = document.getElementById("air-chart");
+    window.__airChart = echarts.init(el);
+    window.__airChart.setOption(airChartOption(asc));
+    if (!window.__airResizeHooked) {
+      window.__airResizeHooked = true;
+      window.addEventListener("resize", () => { if (window.__airChart) window.__airChart.resize(); });
+    }
+  }
 }
 
 async function viewSettings(me) {
