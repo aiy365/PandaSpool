@@ -34,6 +34,7 @@ type Server struct {
 	ez     *ezviz.Client
 	mu     sync.Mutex
 	lastOn map[string]bool
+	lastAirPrune string
 
 	notifiedPrintEnd time.Time
 	// 首层提醒的任务感知状态：只有亲眼见过当前任务的第 0/1 层才会在
@@ -1358,12 +1359,29 @@ func (s *Server) applyIntegrations() {
 	s.ez.SetSeed(cfg.Ezviz.AccessToken, time.UnixMilli(cfg.Ezviz.TokenExpireAt))
 }
 
+// dailyAirPrune 每天一次清理超过两年的原始空气样本（空间护栏：单节点约
+// 40MB/年，2 年滚动上限让库永不无限膨胀；两年内的细节曲线全部保留）。
+func (s *Server) dailyAirPrune() {
+	today := time.Now().Format("2006-01-02")
+	if s.lastAirPrune == today {
+		return
+	}
+	s.lastAirPrune = today
+	cutoff := time.Now().AddDate(-2, 0, 0).Unix()
+	if res, err := s.st.DB.Exec(`DELETE FROM air_samples WHERE ts < ?`, cutoff); err == nil {
+		if n, _ := res.RowsAffected(); n > 0 {
+			log.Printf("空气日志维护: 清理 %d 条超过两年的样本", n)
+		}
+	}
+}
+
 // automate 每 10 秒巡检一次。开关命令只在目标状态和上次下发不一致时才发，
 // 避免每 10 秒对同一个插座重复下发。
 func (s *Server) automate() {
 	for {
 		time.Sleep(10 * time.Second)
 		s.tickNotifications()
+		s.dailyAirPrune()
 		cfg := s.st.LoadSettings()
 		if cfg.Automations.PrintBoostMinutes > 0 && cfg.EWeLink.BoxPrint != "" {
 			s.switchOnce(cfg.EWeLink.BoxPrint, s.bambu.PrintingOrBoost(cfg.Automations.PrintBoostMinutes))
