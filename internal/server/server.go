@@ -12,6 +12,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -1146,16 +1147,66 @@ func (s *Server) ingestAir(w http.ResponseWriter, r *http.Request) {
 	if zone == "" {
 		zone = "room"
 	}
+	// 环境日志自洽：入库瞬间盖上打印机状态与当时装载的耗材章
+	st := s.bambu.Status()
+	gcode, _ := st["gcode_state"].(string)
+	stage, _ := st["stage"].(string)
+	printing := bambu.PrintingFromState(gcode, stage)
+	payload["printing"] = printing
+	if fil := loadedFilament(st, printing); fil != "" {
+		payload["filament"] = fil
+	}
 	raw, _ := json.Marshal(payload)
 	if err := s.st.InsertAir(ts, zone, raw); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	// 带上打印状态：空气节点据此做动态采样（打印中高频、空闲降频省激光）
-	st := s.bambu.Status()
-	gcode, _ := st["gcode_state"].(string)
-	stage, _ := st["stage"].(string)
-	w.Write([]byte(`{"status":"ok","printing":` + fmt.Sprintf("%v", bambu.PrintingFromState(gcode, stage)) + `}`))
+	w.Write([]byte(`{"status":"ok","printing":` + fmt.Sprintf("%v", printing) + `}`))
+}
+
+// loadedFilament 从打印机状态里提取当前装载的耗材描述（如 "Polymaker PETG"）。
+// 闲置占位（tray_now=254 + 占位灰）不算真实耗材——这是拓竹的已知行为。
+func loadedFilament(st map[string]any, printing bool) string {
+	tn, _ := st["tray_now"].(string)
+	if tn == "" || tn == "255" {
+		return ""
+	}
+	tray, ok := st["vt_tray"].(map[string]any)
+	if !ok {
+		return ""
+	}
+	btype, _ := tray["tray_type"].(string)
+	if strings.TrimSpace(btype) == "" {
+		return ""
+	}
+	col, _ := tray["tray_color"].(string)
+	col = strings.TrimPrefix(strings.TrimSpace(col), "#")
+	if len(col) >= 6 && isPlaceholderGrayHex(col[:6]) && tn == "254" && !printing {
+		return "" // 闲置 + 占位灰 = 料架没挂料或拓竹没上报真实信息
+	}
+	sub, _ := tray["tray_sub_brands"].(string)
+	return strings.TrimSpace(strings.TrimSpace(sub) + " " + strings.TrimSpace(btype))
+}
+
+// isPlaceholderGrayHex 判断是否拓竹的占位灰（#A0A0A0 一类的中性灰）。
+func isPlaceholderGrayHex(hex string) bool {
+	if len(hex) != 6 {
+		return false
+	}
+	v, err := strconv.ParseUint(hex, 16, 32)
+	if err != nil {
+		return false
+	}
+	r, g, b := int(v>>16)&0xff, int(v>>8)&0xff, int(v)&0xff
+	return abs(r-g) < 14 && abs(g-b) < 14 && r >= 135 && r <= 190
+}
+
+func abs(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
 }
 
 // ---- 通知 ----
