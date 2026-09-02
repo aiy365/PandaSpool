@@ -1153,7 +1153,7 @@ func (s *Server) ingestAir(w http.ResponseWriter, r *http.Request) {
 	stage, _ := st["stage"].(string)
 	printing := bambu.PrintingFromState(gcode, stage)
 	payload["printing"] = printing
-	if fil := loadedFilament(st, printing); fil != "" {
+	if fil := resolveLoadedFilament(s, st, printing); fil != "" {
 		payload["filament"] = fil
 	}
 	raw, _ := json.Marshal(payload)
@@ -1165,9 +1165,37 @@ func (s *Server) ingestAir(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte(`{"status":"ok","printing":` + fmt.Sprintf("%v", printing) + `}`))
 }
 
-// loadedFilament 从打印机状态里提取当前装载的耗材描述（如 "Polymaker PETG"）。
+// ---- 云端耗材目录缓存（ingest 每 30~300 秒一次，不能每条样本都打拓竹 API）----
+var (
+	specCacheMu   sync.Mutex
+	specCacheList []bambu.CloudFilament
+	specCacheAt   time.Time
+)
+
+func (s *Server) cloudSpecsCached() ([]bambu.CloudFilament, error) {
+	specCacheMu.Lock()
+	defer specCacheMu.Unlock()
+	if specCacheList != nil && time.Since(specCacheAt) < 10*time.Minute {
+		return specCacheList, nil
+	}
+	ad, err := s.cloudAdapter()
+	if err != nil {
+		return nil, err
+	}
+	list, err := ad.ListFilaments()
+	if err != nil {
+		return nil, err
+	}
+	specCacheList, specCacheAt = list, time.Now()
+	return list, nil
+}
+
+// resolveLoadedFilament 识别外部料架上装的耗材。
+// 识别链：打印机广播的 tray_info_idx + tray_color → 云端目录条目（FilamentID+Color
+// 双重匹配）→ 关联产品的品牌（无关联则退回条目自身 vendor）。Studio 的材料设置里
+// 选哪个云端耗材，打印机就广播哪个的 idx——这是打印机与我们台账间的确定性关联键。
 // 闲置占位（tray_now=254 + 占位灰）不算真实耗材——这是拓竹的已知行为。
-func loadedFilament(st map[string]any, printing bool) string {
+func resolveLoadedFilament(s *Server, st map[string]any, printing bool) string {
 	tn, _ := st["tray_now"].(string)
 	if tn == "" || tn == "255" {
 		return ""
@@ -1177,16 +1205,53 @@ func loadedFilament(st map[string]any, printing bool) string {
 		return ""
 	}
 	btype, _ := tray["tray_type"].(string)
-	if strings.TrimSpace(btype) == "" {
-		return ""
-	}
+	btype = strings.TrimSpace(btype)
 	col, _ := tray["tray_color"].(string)
 	col = strings.TrimPrefix(strings.TrimSpace(col), "#")
+	idx, _ := tray["tray_info_idx"].(string)
+	idx = strings.TrimSpace(idx)
 	if len(col) >= 6 && isPlaceholderGrayHex(col[:6]) && tn == "254" && !printing {
-		return "" // 闲置 + 占位灰 = 料架没挂料或拓竹没上报真实信息
+		return "" // 闲置 + 占位灰 = 拓竹没在报真实耗材
 	}
-	sub, _ := tray["tray_sub_brands"].(string)
-	return strings.TrimSpace(strings.TrimSpace(sub) + " " + strings.TrimSpace(btype))
+	label := ""
+	if idx != "" {
+		if specs, err := s.cloudSpecsCached(); err == nil {
+			var byIdx, byIdxColor *bambu.CloudFilament
+			for i := range specs {
+				f := &specs[i]
+				if !strings.EqualFold(strings.TrimSpace(f.FilamentID), idx) {
+					continue
+				}
+				if byIdx == nil {
+					byIdx = f
+				}
+				fc := strings.ToUpper(strings.TrimPrefix(strings.TrimSpace(f.Color), "#"))
+				if len(fc) >= 6 && len(col) >= 6 && fc[:6] == strings.ToUpper(col[:6]) {
+					byIdxColor = f
+					break
+				}
+			}
+			hit := byIdxColor
+			if hit == nil {
+				hit = byIdx
+			}
+			if hit != nil {
+				vendor := strings.TrimSpace(hit.FilamentVendor)
+				var pBrand string
+				_ = s.st.DB.QueryRow(`SELECT brand FROM products WHERE bambu_preset_id = ?`,
+					strconv.FormatInt(hit.ID, 10)).Scan(&pBrand)
+				if strings.TrimSpace(pBrand) != "" {
+					vendor = strings.TrimSpace(pBrand)
+				}
+				label = strings.TrimSpace(vendor + " " + btype)
+			}
+		}
+	}
+	if label == "" {
+		sub, _ := tray["tray_sub_brands"].(string)
+		label = strings.TrimSpace(strings.TrimSpace(sub) + " " + btype)
+	}
+	return label
 }
 
 // isPlaceholderGrayHex 判断是否拓竹的占位灰（#A0A0A0 一类的中性灰）。
