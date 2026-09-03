@@ -1296,7 +1296,13 @@ func (s *Server) weComAccessToken(cfg store.Settings) (string, error) {
 	}
 	_ = json.Unmarshal(raw, &parsed)
 	if parsed.AccessToken == "" {
-		return "", fmt.Errorf("企业微信凭证无效(%d): %s", parsed.ErrCode, parsed.ErrMsg)
+		hint := ""
+		if parsed.ErrCode == 40001 {
+			hint = "（Secret 或企业ID不正确，可能已在后台重置；请到企业微信管理后台重新查看 Secret 并粘贴保存。IP 白名单问题报 60020，与本错误无关）"
+		} else if parsed.ErrCode == 60020 {
+			hint = "（本服务器 IP 未加入企业微信应用的「企业可信IP」白名单）"
+		}
+		return "", fmt.Errorf("企业微信凭证无效(%d): %s%s", parsed.ErrCode, parsed.ErrMsg, hint)
 	}
 	return parsed.AccessToken, nil
 }
@@ -1375,6 +1381,22 @@ func (s *Server) dailyAirPrune() {
 	}
 }
 
+// latestPresence 读最近一条空气样本的"有人"标志（LD2410C 上报）。
+// 样本超过 maxAge（节点离线）视为不可信，返回 ok=false 让调用方回退到打印状态逻辑。
+func (s *Server) latestPresence(maxAge time.Duration) (present, ok bool) {
+	recent, err := s.st.RecentAir(1)
+	if err != nil || len(recent) == 0 {
+		return false, false
+	}
+	ts, _ := recent[0]["ts"].(int64)
+	if ts == 0 || time.Since(time.Unix(ts, 0)) > maxAge {
+		return false, false
+	}
+	data, _ := recent[0]["data"].(map[string]any)
+	p, _ := data["presence"].(bool)
+	return p, true
+}
+
 // automate 每 10 秒巡检一次。开关命令只在目标状态和上次下发不一致时才发，
 // 避免每 10 秒对同一个插座重复下发。
 func (s *Server) automate() {
@@ -1383,8 +1405,16 @@ func (s *Server) automate() {
 		s.tickNotifications()
 		s.dailyAirPrune()
 		cfg := s.st.LoadSettings()
-		if cfg.Automations.PrintBoostMinutes > 0 && cfg.EWeLink.BoxPrint != "" {
-			s.switchOnce(cfg.EWeLink.BoxPrint, s.bambu.PrintingOrBoost(cfg.Automations.PrintBoostMinutes))
+		if cfg.EWeLink.BoxPrint != "" {
+			// 仓内打印加强：有人在打印间立即开启（LD2410C 真值，开关默认开）；
+			// 没人时看打印状态——打印中或打印后加强窗口内维持，冷却结束关闭。
+			on := cfg.Automations.PrintBoostMinutes > 0 && s.bambu.PrintingOrBoost(cfg.Automations.PrintBoostMinutes)
+			if cfg.Automations.RoomOnPresence {
+				if p, ok := s.latestPresence(30 * time.Minute); ok && p {
+					on = true
+				}
+			}
+			s.switchOnce(cfg.EWeLink.BoxPrint, on)
 		}
 		if cfg.EWeLink.BoxAlways != "" {
 			s.switchOnce(cfg.EWeLink.BoxAlways, cfg.Automations.BoxAlwaysOn)
