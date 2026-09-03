@@ -444,7 +444,6 @@ button.stk-bar-btn:hover {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 1.25rem;
-  align-items: start;
 }
 .form-control { margin-bottom: 0.8rem; }
 .form-control:last-child { margin-bottom: 0; }
@@ -613,5 +612,5 @@ body, .card, .topbar, .btn, .badge { transition: background-color 0.18s ease, bo
 .-mt-1 { margin-top: -0.25rem; }
 
 /* 宽卡：跨两列（通知/表单密集卡），窄屏自动回落单列 */
-.masonry-grid .card-wide { grid-column: span 2; }
+.masonry-grid .card-wide { grid-column: 1 / -1; }
 @media (max-width: 900px) { .masonry-grid .card-wide { grid-column: span 1; } }

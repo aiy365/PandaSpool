@@ -1877,6 +1877,14 @@ async function viewSettings(me) {
       </div>
     `)}
     ${card(`
+      <h2 class="card-title">设备令牌</h2>
+      <p class="muted text-sm">空气探头与桌面端/AI 访问本站用的密钥，已脱敏显示——留空保存表示保留原值，重填新值即轮换（换过后设备端要同步更新）。</p>
+      <div class="row cols-2">
+        ${field("空气令牌（ESP32 探头）", inputEl("at", `value="${esc(s.air.token)}" placeholder="留空表示保留原值"`))}
+        ${field("AI 令牌（只读+写草稿）", inputEl("ait", `value="${esc(s.ai?.token || "")}" placeholder="留空表示保留原值"`))}
+      </div>
+    `)}
+    ${card(`
       <h2 class="card-title">拓竹云账号</h2>
       <p class="muted text-sm">云端耗材目录与打印机连接的数据源。登录三步：<b>① 保存账号 → ② 发送验证码 → ③ 验证码登录</b>，成功后记住 token，之后免验证。</p>
       <div class="row cols-2">
@@ -1987,14 +1995,6 @@ async function viewSettings(me) {
         <button class="btn btn-outline" id="testwh">发送测试推送</button>
       </div>
     `, "card-wide")}
-    ${card(`
-      <h2 class="card-title">设备令牌</h2>
-      <p class="muted text-sm">空气探头与桌面端/AI 访问本站用的密钥，已脱敏显示——留空保存表示保留原值，重填新值即轮换（换过后设备端要同步更新）。</p>
-      <div class="row cols-2">
-        ${field("空气令牌（ESP32 探头）", inputEl("at", `value="${esc(s.air.token)}" placeholder="留空表示保留原值"`))}
-        ${field("AI 令牌（只读+写草稿）", inputEl("ait", `value="${esc(s.ai?.token || "")}" placeholder="留空表示保留原值"`))}
-      </div>
-    `)}
     </div>`;
   const collect = () => ({
     site: { title: $("#st").value },
