@@ -611,3 +611,7 @@ body, .card, .topbar, .btn, .badge { transition: background-color 0.18s ease, bo
   border-radius: 999px; background: oklch(var(--p) / 0.12); color: oklch(var(--p));
   font-size: 1.5rem; font-weight: 900; letter-spacing: -0.03em; }
 .-mt-1 { margin-top: -0.25rem; }
+
+/* 宽卡：跨两列（通知/表单密集卡），窄屏自动回落单列 */
+.masonry-grid .card-wide { grid-column: span 2; }
+@media (max-width: 900px) { .masonry-grid .card-wide { grid-column: span 1; } }

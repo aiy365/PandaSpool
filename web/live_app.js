@@ -157,8 +157,8 @@ function selectEl(id, options, extra = "") {
 function textareaEl(id, value = "", extra = "") {
   return `<textarea id="${id}" class="textarea textarea-bordered w-full" ${extra}>${esc(value)}</textarea>`;
 }
-function card(inner) {
-  return `<section class="card bg-base-100 shadow-sm border border-base-300 masonry-item">${inner.includes("card-body") ? inner : `<div class="card-body p-4 sm:p-6">${inner}</div>`}</section>`;
+function card(inner, extraCls = "") {
+  return `<section class="card bg-base-100 shadow-sm border border-base-300 masonry-item ${extraCls}">${inner.includes("card-body") ? inner : `<div class="card-body p-4 sm:p-6">${inner}</div>`}</section>`;
 }
 function joinOnOff(idAttr, idVal, onKey = "on") {
   return `<span class="join">
@@ -1858,27 +1858,27 @@ async function viewSettings(me) {
     <div class="settings-head">
       <div>
         <h1 class="card-title">设置</h1>
-        <p class="muted">拷给第二个人：跑起来只填这一页。密码框留空表示不改。结果在右下角弹出。</p>
+        <p class="muted">所有配置集中在这页。密码 / Secret 留空表示保持不变；保存结果在右下角弹窗提示。</p>
       </div>
       <button type="button" class="btn btn-primary" id="sa">保存全部设置</button>
     </div>
     <div class="masonry-grid">
     ${card(`
-      <h2 class="card-title">登录</h2>
+      <h2 class="card-title">站点与账号</h2>
       <div class="row cols-2">
         ${field("站点名称", inputEl("st", `value="${esc(s.site.title)}"`))}
         ${field("用户名", inputEl("su", `value="${esc(me.username)}"`))}
-        ${field("原密码", inputEl("so", `type="password"`))}
-        ${field("新密码", inputEl("sn", `type="password"`))}
+        ${field("原密码", inputEl("so", `type="password" placeholder="改密码时必填"`))}
+        ${field("新密码", inputEl("sn", `type="password" placeholder="留空不改密码"`))}
       </div>
       <div class="card-actions">
-        <button class="btn btn-primary" id="ssite">保存站点名</button>
-        <button class="btn btn-ghost" id="spw">更新用户名密码</button>
+        <button class="btn btn-primary" id="ssite">保存站点名称</button>
+        <button class="btn btn-ghost" id="spw">修改用户名密码</button>
       </div>
     `)}
     ${card(`
-      <h2 class="card-title">拓竹云（只读）</h2>
-      <p class="muted">中国区现在几乎都必须验证码。顺序：保存账号 → 发送验证码 → 填码登录。以后会记住 token，不必每次验证。</p>
+      <h2 class="card-title">拓竹云账号</h2>
+      <p class="muted text-sm">云端耗材目录与打印机连接的数据源。登录三步：<b>① 保存账号 → ② 发送验证码 → ③ 验证码登录</b>，成功后记住 token，之后免验证。</p>
       <div class="row cols-2">
         ${field("地区", inputEl("br", `value="${esc(s.bambu.region)}"`))}
         ${field("打印机 SN", inputEl("bsn", `value="${esc(s.bambu.printer_sn)}"`))}
@@ -1888,20 +1888,15 @@ async function viewSettings(me) {
         ${field("或粘贴 accessToken", inputEl("btok", `type="password" placeholder="可选，高级用法"`))}
       </div>
       <div class="card-actions flex-wrap">
-        <button class="btn btn-ghost" id="tb">保存并尝试登录</button>
-        <button class="btn btn-ghost" id="bcode">发送验证码</button>
-        <button class="btn btn-primary" id="bver">用验证码登录</button>
-        <button class="btn btn-ghost" id="btoken">用 Token 登录</button>
+        <button class="btn btn-ghost" id="tb">① 保存账号</button>
+        <button class="btn btn-ghost" id="bcode">② 发送验证码</button>
+        <button class="btn btn-primary" id="bver">③ 验证码登录</button>
+        <button class="btn btn-ghost btn-outline" id="btoken">用 Token 登录（备用）</button>
       </div>
     `)}
     ${card(`
-      <h2 class="card-title">易微联</h2>
-      <p class="muted">云服务器从易微联云开关插座，手机 App 继续能用。三联继电器会拆成 3 路，点一下绑定，不用手抄 ID。</p>
-      <ul class="steps steps-vertical lg:steps-horizontal w-full">
-        <li class="step step-primary">填 App 同一套账号</li>
-        <li class="step step-primary">登录并拉设备</li>
-        <li class="step">点选绑定并试开关</li>
-      </ul>
+      <h2 class="card-title">易微联（插座控制）</h2>
+      <p class="muted text-sm">补光灯、净化器等云插座的控制通道，手机 App 不受影响。填 App 同一套账号登录，设备列表里点选绑定，免手抄 ID。</p>
       <div class="row cols-2">
         ${field("地区（中国填 cn）", inputEl("er", `value="${esc(s.ewelink.region)}"`))}
         ${field("手机或邮箱", inputEl("ea", `value="${esc(s.ewelink.account)}" placeholder="138xxxx 或邮箱"`))}
@@ -1921,9 +1916,9 @@ async function viewSettings(me) {
         </div>
       </div>
       <div class="card-actions flex-wrap">
-        <button class="btn btn-primary" id="te">登录并拉设备</button>
-        <button class="btn btn-ghost" id="ewtok">用 Token 登录</button>
+        <button class="btn btn-primary" id="te">登录并拉取设备</button>
         <button class="btn btn-ghost" id="ewsave">只保存账号</button>
+        <button class="btn btn-ghost btn-outline" id="ewtok">用 Token 登录（备用）</button>
       </div>
       <div class="bind-summary" id="ebound">
         ${bindRow("补光灯", "el", s.ewelink.light)}
@@ -1934,13 +1929,13 @@ async function viewSettings(me) {
       <div id="elist"></div>
     `)}
     ${card(`
-      <h2 class="card-title">萤石</h2>
+      <h2 class="card-title">萤石（监控画面）</h2>
       <p class="text-sm muted mb-2">
-        <a href="https://open.ys7.com/console/application.html" target="_blank" class="link">👉 点此获取 AppKey 和 Secret</a>
-        <span class="mx-2">|</span>
-        <a href="https://open.ys7.com/console/device.html" target="_blank" class="link">👉 点此查看设备绑定与序列号</a>
-        <br>
-        <span class="text-xs">注意：在“应用详情”中，应用名称可随便填，但必须配置才能拿到密钥。</span>
+        <a href="https://open.ys7.com/console/application.html" target="_blank" class="link link-hover">获取 AppKey / Secret</a>
+        <span class="mx-1 opacity-40">·</span>
+        <a href="https://open.ys7.com/console/device.html" target="_blank" class="link link-hover">查看设备序列号</a>
+        <span class="mx-1 opacity-40">·</span>
+        首次需在开放平台创建应用并配置后才能取到密钥
       </p>
       <div class="row cols-2">
         ${field("AppKey", inputEl("zk", `value="${esc(s.ezviz.app_key)}"`))}
@@ -1964,44 +1959,41 @@ async function viewSettings(me) {
                  field("截右(%)", inputEl("zc_r", `type="number" value="${esc(_c[3]||"0")}"`));
         })()}
       </div>
-      <div class="card-actions"><button class="btn btn-ghost" id="tz">保存并测试萤石</button></div>
+      <div class="card-actions"><button class="btn btn-primary" id="tz">保存并测试画面</button></div>
     `)}
     ${card(`
-      <h2 class="card-title">消息通知</h2>
-      <p class="text-sm muted">在首层开始，以及打印完成 10 分钟后自动抓取监控图推送。</p>
-      
+      <h2 class="card-title">消息通知（企业微信）</h2>
+      <p class="text-sm muted">首层完成与打印结束时自动抓监控图推送到微信，免费。</p>
       <div class="mt-2">
-        
-      
-      <div class="mt-4">
-        <div class="font-bold border-b pb-1 mb-2">消息通知 (企业微信)</div>
-        <p class="text-xs muted mb-3" style="line-height:1.5;">
-          <b>企业微信自建应用推送 (完全免费，直接在微信显示监控大图)</b><br>
-          1. <a href="https://work.weixin.qq.com" target="_blank" class="link">注册/登录企业微信后台</a> -> 应用管理 -> 创建应用。<br>
-          2. 在“接收消息”处填写 URL: <code id="wecom-webhook-url">${hookUrl}</code>，获取 <b>Token</b> 和 <b>EncodingAESKey</b>。<br>
-          3. 将 <b>企业ID</b>, <b>Secret</b>, <b>AgentID</b>, <b>AESKey</b> 填入下方，点击“保存通知设置”。<br>
-          4. 回到企业微信页面点击“保存”。验证通过后，将“企业可信IP”设置为 <code id="wecom-server-ip">${serverIp}</code>。
-        </p>
-        <div class="row cols-5 mb-3">
+        <div class="font-bold border-b pb-1 mb-2">首次接入步骤</div>
+        <ol class="text-xs muted mb-3" style="line-height:1.8;padding-left:1.2em;list-style:decimal">
+          <li><a href="https://work.weixin.qq.com" target="_blank" class="link">注册/登录企业微信后台</a> → 应用管理 → 创建应用</li>
+          <li>在应用「接收消息」处填写 URL：<code id="wecom-webhook-url">${hookUrl}</code>，记下 Token 和 EncodingAESKey</li>
+          <li>将 企业ID / Secret / AgentID / AESKey 填入下方，点「保存通知设置」</li>
+          <li>回到企业微信页面点保存；最后把「企业可信IP」设为 <code id="wecom-server-ip">${serverIp}</code></li>
+        </ol>
+        <div class="row cols-3 mb-2">
           ${field("企业ID (CorpID)", inputEl("wcCorp", `value="${esc(s.automations.wecom_corpid || "")}" placeholder="ww..."`))}
           ${field("应用Secret", inputEl("wcSec", `type="password" placeholder="留空不改"`))}
-          ${field("应用AgentID", inputEl("wcAgent", `value="${esc(s.automations.wecom_agentid || "")}" placeholder="1000002"`))}
+          ${field("应用 AgentID", inputEl("wcAgent", `value="${esc(s.automations.wecom_agentid || "")}" placeholder="1000002"`))}
+        </div>
+        <div class="row cols-2 mb-3">
           ${field("EncodingAESKey", inputEl("wcAES", `type="password" placeholder="用于过检URL验证"`))}
-          ${field("接收人账号(留空则发全体)", inputEl("wcTo", `value="${esc(s.automations.wecom_touser || "")}" placeholder="@all 或 账号ID"`))}
+          ${field("接收人（留空发全体）", inputEl("wcTo", `value="${esc(s.automations.wecom_touser || "")}" placeholder="@all 或 账号ID"`))}
         </div>
       </div>
-      
       <div class="card-actions mt-3">
         <button class="btn btn-primary" id="savewh">保存通知设置</button>
-        <button class="btn" id="testwh" style="margin-left: 8px;">发送测试推送</button>
+        <button class="btn btn-outline" id="testwh">发送测试推送</button>
       </div>
-    `)}
+    `, "card-wide")}
     ${card(`
-      <h2 class="card-title">空气探头 / AI 令牌</h2>
-      <p class="muted">设备端用令牌调以下接口（已脱敏显示，重填新值即轮换）：</p>
-      <p><code>POST /api/ingest/air</code>　<code>GET /api/ai/materials</code>　<code>POST /api/ai/drafts</code>（AI 只能写草稿，不能确认、不能改库存）</p>
-      ${field("空气令牌", inputEl("at", `value="${esc(s.air.token)}" placeholder="留空表示保留原值"`))}
-      ${field("AI 令牌", inputEl("ait", `value="${esc(s.ai?.token || "")}" placeholder="留空表示保留原值"`))}
+      <h2 class="card-title">设备令牌</h2>
+      <p class="muted text-sm">空气探头与桌面端/AI 访问本站用的密钥，已脱敏显示——留空保存表示保留原值，重填新值即轮换（换过后设备端要同步更新）。</p>
+      <div class="row cols-2">
+        ${field("空气令牌（ESP32 探头）", inputEl("at", `value="${esc(s.air.token)}" placeholder="留空表示保留原值"`))}
+        ${field("AI 令牌（只读+写草稿）", inputEl("ait", `value="${esc(s.ai?.token || "")}" placeholder="留空表示保留原值"`))}
+      </div>
     `)}
     </div>`;
   const collect = () => ({
