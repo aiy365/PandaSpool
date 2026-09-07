@@ -490,6 +490,13 @@ function fmtTemp1(t) {
   if (t == null || Number.isNaN(n)) return "—";
   return String(Math.round(n * 10) / 10);
 }
+function fmtLocalMinute(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (isNaN(d)) return String(iso).replace("T", " ").slice(0, 16);
+  const p = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
 function dedupeName(n) {
   const p = String(n || "").trim().split(/\s+/).filter(Boolean);
   return p.filter((t, i) => i === 0 || t !== p[i - 1]).join(" ");
@@ -3344,11 +3351,11 @@ async function viewAir() {
                 ? '<span class="badge badge-success badge-sm gap-1 font-medium">● 探头 A 在线</span>' 
                 : `<span class="badge badge-success badge-sm gap-1 font-medium">● 探头 A 在线 · ${Math.floor(telem.room.ageSec / 60)} 分钟前</span>`)
             : `<span class="badge badge-warning badge-sm gap-1 font-medium">○ 探头 A 离线 · ${telem.room.ageStr}</span>`}
-          ${desk.is_printing 
-            ? '<span class="badge badge-primary badge-sm gap-1 font-medium">● 打印机工作中</span>' 
+          ${telem.printer.isPrinting
+            ? '<span class="badge badge-primary badge-sm gap-1 font-medium">● 打印机工作中</span>'
             : '<span class="badge badge-ghost badge-sm gap-1 font-medium">○ 打印机待机</span>'}
-          ${desk.fan_on 
-            ? '<span class="badge badge-info badge-sm gap-1 font-medium">● 智能排风开</span>' 
+          ${telem.chamber.exhaustOn
+            ? '<span class="badge badge-info badge-sm gap-1 font-medium">● 智能排风开</span>'
             : '<span class="badge badge-ghost badge-sm gap-1 font-medium">○ 智能排风关</span>'}
         </div>
       </div>
@@ -3406,7 +3413,7 @@ async function viewAir() {
     aux: [
       ["仓内湿度", telem.chamber.rh != null ? `${telem.chamber.rh} %` : "—"],
       ["仓内 TVOC", telem.chamber.tvoc != null ? `${telem.chamber.tvoc} ppb` : "—"],
-      ["关联机台", desk.is_printing ? "打印中 · Bambu A1" : "空闲待机"],
+      ["关联机台", telem.printer.isPrinting ? "打印中 · Bambu A1" : "空闲待机"],
     ],
     meta: `最新采样：${telem.chamber.ageStr}`,
     badge: { text: "仓内探头 (C3)", cls: "badge-accent badge-outline" },
@@ -3469,7 +3476,7 @@ async function viewAir() {
       <div class="pp-air-summary-col">
         <div class="pp-air-summary-col-head">
           <span class="pp-air-summary-col-title">${ppIcon("spool", "w-3.5 h-3.5 text-accent")} 3. 打印仓内温度</span>
-          <span class="badge badge-xs ${desk.fan_on ? 'badge-info' : 'badge-ghost'}">${desk.fan_on ? '排风开启' : '排风待机'}</span>
+          <span class="badge badge-xs ${telem.chamber.exhaustOn ? 'badge-info' : 'badge-ghost'}">${telem.chamber.exhaustOn ? '排风开启' : '排风待机'}</span>
         </div>
         <div class="pp-air-summary-cells">
           <div class="pp-air-cell">
@@ -4281,7 +4288,7 @@ async function viewSpools() {
                     <span class="font-mono font-semibold tabular-nums text-sm text-base-content/90 cursor-pointer hover:underline" title="点击修改重量" data-sp-id="${esc(s.id)}" data-sp-act="weight" data-sp-code="${esc(s.short_code || '')}" data-sp-name="${esc(fname)}" data-sp-weight="${s.net_weight_g != null ? Math.round(s.net_weight_g) : 1000}">${s.net_weight_g != null ? Math.round(s.net_weight_g) + " g" : "—"}</span>
                   </div>
                 </td>
-                <td class="py-3 text-xs text-base-content/60 hide-on-mobile font-mono">${s.last_synced_at ? esc(s.last_synced_at.replace("T", " ").slice(0, 16)) : "从未同步"}</td>
+                <td class="py-3 text-xs text-base-content/60 hide-on-mobile font-mono">${s.last_synced_at ? esc(fmtLocalMinute(s.last_synced_at)) : "从未同步"}</td>
                 <td class="py-3 text-right pr-4">
                   <div class="inline-flex items-center gap-1">
                     <button type="button" class="btn btn-xs btn-ghost gap-1 px-2" title="修改重量" data-sp-id="${esc(s.id)}" data-sp-act="weight" data-sp-code="${esc(s.short_code || '')}" data-sp-name="${esc(fname)}" data-sp-weight="${s.net_weight_g != null ? Math.round(s.net_weight_g) : 1000}">

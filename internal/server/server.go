@@ -330,13 +330,13 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) summary(w http.ResponseWriter, r *http.Request) {
 	out := s.st.Summary()
-	var spUnopened, spOpened int
-	_ = s.st.DB.QueryRow(`SELECT IFNULL(SUM(status='unopened'),0), IFNULL(SUM(status='opened'),0) FROM spools`).Scan(&spUnopened, &spOpened)
-	if spUnopened > 0 {
-		out["unopened"] = spUnopened
-		out["opened"] = spOpened
-		out["spools"] = spUnopened + spOpened
-	}
+	// 物理料盘台账口径以 spools 表为准（无条件覆盖 Store.Summary 的 colors 聚合，
+	// 否则全部开封时总览会回退到旧盘点模型的陈旧数字）
+	var spTotal, spUnopened, spOpened int
+	_ = s.st.DB.QueryRow(`SELECT COUNT(*), IFNULL(SUM(status='unopened'),0), IFNULL(SUM(status='opened'),0) FROM spools`).Scan(&spTotal, &spUnopened, &spOpened)
+	out["unopened"] = spUnopened
+	out["opened"] = spOpened
+	out["spools"] = spTotal
 	st := s.bambu.Status()
 	if fil := resolveLoadedFilament(s, st, s.bambu.HasPrintState()); fil != "" {
 		st["loaded_filament"] = fil
