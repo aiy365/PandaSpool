@@ -65,6 +65,15 @@ func New(dataDir, listen string) (*Server, error) {
 	}
 	if val, err := st.GetMeta("last_loaded_filament"); err == nil && val != "" {
 		s.lastLoadedFilament = val
+	} else {
+		// 历史样本自愈播种：若从未记录过，从 air_samples 历史中自动回填最近一次记录的有效耗材
+		var histFilament string
+		_ = st.DB.QueryRow(`SELECT json_extract(payload, '$.filament') FROM air_samples WHERE json_extract(payload, '$.filament') IS NOT NULL AND json_extract(payload, '$.filament') != '' ORDER BY ts DESC LIMIT 1`).Scan(&histFilament)
+		histFilament = strings.TrimSpace(strings.TrimSuffix(histFilament, "(最近装载)"))
+		if histFilament != "" {
+			s.lastLoadedFilament = histFilament
+			_ = st.SetMeta("last_loaded_filament", histFilament)
+		}
 	}
 	// eWeLink 客户端在 401/406 后会自动重登，新 token 通过回调落库，重启不丢。
 	s.ew.OnTokenRefresh(func(at, rt string) {
