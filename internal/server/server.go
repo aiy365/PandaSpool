@@ -42,6 +42,9 @@ type Server struct {
 	lastJob         string
 	layer1Seen      bool
 	layer1Notified  bool
+
+	lastLoadedMu       sync.RWMutex
+	lastLoadedFilament string
 }
 
 func New(dataDir, listen string) (*Server, error) {
@@ -60,6 +63,9 @@ func New(dataDir, listen string) (*Server, error) {
 		bambu: bambu.New(), ew: ewelink.New(), ez: ezviz.New(),
 		lastOn: map[string]bool{},
 	}
+	if val, err := st.GetMeta("last_loaded_filament"); err == nil && val != "" {
+		s.lastLoadedFilament = val
+	}
 	// eWeLink 客户端在 401/406 后会自动重登，新 token 通过回调落库，重启不丢。
 	s.ew.OnTokenRefresh(func(at, rt string) {
 		cfg := s.st.LoadSettings()
@@ -77,6 +83,9 @@ func New(dataDir, listen string) (*Server, error) {
 	})
 	s.Addr = listen
 	mux := http.NewServeMux()
+	mux.HandleFunc("/favicon.ico", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	})
 	mux.HandleFunc("/api/wecom/verify", s.verifyWeCom)
 	mux.HandleFunc("/api/notify/test", s.auth(s.testNotify))
 	mux.HandleFunc("/api/server-ip", func(w http.ResponseWriter, r *http.Request) {
@@ -127,7 +136,7 @@ func New(dataDir, listen string) (*Server, error) {
 	mux.HandleFunc("/api/machine", s.auth(s.machine))
 	mux.HandleFunc("/api/actuators/", s.auth(s.actuator))
 	mux.HandleFunc("/api/camera", s.auth(s.camera))
-	mux.HandleFunc("/api/air", s.auth(s.air))
+	mux.HandleFunc("/api/air", s.airAuth(s.air))
 	mux.HandleFunc("/api/ingest/air", s.ingestAir)
 	mux.Handle("/", s.static())
 	s.Handler = withLog(mux)
@@ -167,6 +176,19 @@ func (s *Server) auth(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// airAuth 空气数据读取鉴权：网页会话或空气令牌（Bearer）二选一。
+// 屏幕节点等设备端用空气令牌拉取曲线数据。
+func (s *Server) airAuth(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		cfg := s.st.LoadSettings()
+		if cfg.Air.Token != "" && bearerToken(r) == cfg.Air.Token {
+			next(w, r)
+			return
+		}
+		s.auth(next)(w, r)
+	}
+}
+
 func bearerToken(r *http.Request) string {
 	return strings.TrimSpace(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "))
 }
@@ -203,7 +225,7 @@ func (s *Server) authAI(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (s *Server) authDesk(next http.HandlerFunc) http.HandlerFunc { return s.authAI(next) }
+func (s *Server) authDesk(next http.HandlerFunc) http.HandlerFunc { return s.authAny(next) }
 
 // ---- 基础 ----
 
@@ -299,29 +321,43 @@ func (s *Server) me(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) summary(w http.ResponseWriter, r *http.Request) {
 	out := s.st.Summary()
-	// 库存口径统一为物理料盘：未开封/开封从 spools 派生，台账不再手工维护。
 	var spUnopened, spOpened int
 	_ = s.st.DB.QueryRow(`SELECT IFNULL(SUM(status='unopened'),0), IFNULL(SUM(status='opened'),0) FROM spools`).Scan(&spUnopened, &spOpened)
-	out["unopened"] = spUnopened
-	out["opened"] = spOpened
-	out["spools"] = spUnopened + spOpened
+	if spUnopened > 0 {
+		out["unopened"] = spUnopened
+		out["opened"] = spOpened
+		out["spools"] = spUnopened + spOpened
+	}
 	st := s.bambu.Status()
+	if fil := resolveLoadedFilament(s, st, s.bambu.HasPrintState()); fil != "" {
+		st["loaded_filament"] = fil
+	}
 	gcode, _ := st["gcode_state"].(string)
 	stage, _ := st["stage"].(string)
 	out["machine"] = st
 	out["printing"] = bambu.PrintingFromState(gcode, stage)
-	// RecentAir 返回的 data 是已解析的 JSON 体，不是 payload 字符串。
-	if recent, err := s.st.RecentAir(1); err == nil && len(recent) > 0 {
+	// 区分机位环境（仓内/仓外）与移动探测环境
+	if sample, err := s.st.LatestMachineAir(); err == nil && sample != nil {
 		air := map[string]any{}
-		if data, ok := recent[0]["data"].(map[string]any); ok {
+		if data, ok := sample["data"].(map[string]any); ok {
 			for k, v := range data {
 				air[k] = v
 			}
 		}
-		air["ts"] = recent[0]["ts"]
+		air["ts"] = sample["ts"]
 		out["air"] = air
 	} else {
 		out["air"] = map[string]any{}
+	}
+	if mobileSample, err := s.st.LatestAirByZone("mobile"); err == nil && mobileSample != nil {
+		mobile := map[string]any{}
+		if data, ok := mobileSample["data"].(map[string]any); ok {
+			for k, v := range data {
+				mobile[k] = v
+			}
+		}
+		mobile["ts"] = mobileSample["ts"]
+		out["mobile"] = mobile
 	}
 	drafts, _ := s.st.GovernanceCounts()
 	out["drafts"] = drafts
@@ -545,6 +581,24 @@ func (s *Server) productItem(w http.ResponseWriter, r *http.Request) {
 	parts := strings.Split(path, "/")
 	id := parts[0]
 	w.Header().Set("Content-Type", "application/json")
+
+	// /api/products/ai-create —— AI 识图新建耗材档案
+	if parts[0] == "ai-create" && r.Method == http.MethodPost {
+		s.productAICreate(w, r)
+		return
+	}
+
+	// /api/products/{id}/specs —— 批量更新工况与基础属性
+	if len(parts) == 2 && parts[1] == "specs" && r.Method == http.MethodPost {
+		s.productUpdateSpecs(w, r, id)
+		return
+	}
+
+	// /api/products/{id}/ai-vision —— AI 识图提取与自动写入
+	if len(parts) == 2 && parts[1] == "ai-vision" && r.Method == http.MethodPost {
+		s.productAIVision(w, r, id)
+		return
+	}
 
 	// /api/products/{id}/inbox —— 收集箱批量上传
 	if len(parts) == 2 && parts[1] == "inbox" {
@@ -995,16 +1049,29 @@ func (s *Server) desk(w http.ResponseWriter, r *http.Request) { s.machine(w, r) 
 
 func (s *Server) machine(w http.ResponseWriter, r *http.Request) {
 	bambuStatus := s.bambu.Status()
+	if fil := resolveLoadedFilament(s, bambuStatus, s.bambu.HasPrintState()); fil != "" {
+		bambuStatus["loaded_filament"] = fil
+	}
 	cfg := s.st.LoadSettings()
 
 	airMap := map[string]any{}
-	if recent, err := s.st.RecentAir(1); err == nil && len(recent) > 0 {
-		if data, ok := recent[0]["data"].(map[string]any); ok {
+	if sample, err := s.st.LatestMachineAir(); err == nil && sample != nil {
+		if data, ok := sample["data"].(map[string]any); ok {
 			for k, v := range data {
 				airMap[k] = v
 			}
 		}
-		airMap["ts"] = recent[0]["ts"]
+		airMap["ts"] = sample["ts"]
+	}
+
+	mobileMap := map[string]any{}
+	if sample, err := s.st.LatestAirByZone("mobile"); err == nil && sample != nil {
+		if data, ok := sample["data"].(map[string]any); ok {
+			for k, v := range data {
+				mobileMap[k] = v
+			}
+		}
+		mobileMap["ts"] = sample["ts"]
 	}
 
 	if devs, err := s.ew.Devices(); err == nil {
@@ -1031,6 +1098,7 @@ func (s *Server) machine(w http.ResponseWriter, r *http.Request) {
 		"bambu":    bambuStatus,
 		"printing": s.bambu.HasPrintState(),
 		"air":      airMap,
+		"mobile":   mobileMap,
 		"ezviz":    ezStatus,
 	})
 }
@@ -1110,7 +1178,8 @@ func (s *Server) air(w http.ResponseWriter, r *http.Request) {
 	if limit > 1440 {
 		limit = 1440
 	}
-	recent, err := s.st.RecentAir(limit)
+	zone := r.URL.Query().Get("zone")
+	recent, err := s.st.RecentAirByZone(limit, zone)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -1193,16 +1262,59 @@ func (s *Server) cloudSpecsCached() ([]bambu.CloudFilament, error) {
 
 // resolveLoadedFilament 识别外部料架上装的耗材。
 // 识别链：打印机广播的 tray_info_idx + tray_color → 云端目录条目（FilamentID+Color
-// 双重匹配）→ 关联产品的品牌（无关联则退回条目自身 vendor）。Studio 的材料设置里
-// 选哪个云端耗材，打印机就广播哪个的 idx——这是打印机与我们台账间的确定性关联键。
-// 闲置占位（tray_now=254 + 占位灰）不算真实耗材——这是拓竹的已知行为。
+var knownFilamentPresets = map[string]string{
+	"Pf4f9842": "大简 PETG HF",
+	"GFL99":    "Generic PLA",
+	"GFG99":    "Generic PETG",
+	"GFB99":    "Generic ABS",
+	"GFU99":    "Generic TPU",
+	"GFA00":    "Bambu PLA Basic",
+	"GFA01":    "Bambu PLA Matte",
+	"GFG00":    "Bambu PETG Basic",
+	"GFG01":    "Bambu PETG Translucent",
+	"GFB00":    "Bambu ABS",
+	"GFU01":    "Bambu TPU 95A",
+	"GFC00":    "Bambu PC",
+	"GFS00":    "Bambu Support for PLA",
+	"PMPE06":   "Polymaker PETG",
+}
+
+// 识别链：打印机广播的 tray_info_idx + tray_color → 本地 spools 表 → 云端目录条目 → 内置离线字典 → 打印机 tray_type。
 func resolveLoadedFilament(s *Server, st map[string]any, printing bool) string {
-	tn, _ := st["tray_now"].(string)
+	var tn string
+	switch v := st["tray_now"].(type) {
+	case string:
+		tn = strings.TrimSpace(v)
+	case float64:
+		tn = strconv.Itoa(int(v))
+	case int:
+		tn = strconv.Itoa(v)
+	}
 	if tn == "" || tn == "255" {
 		return ""
 	}
-	tray, ok := st["vt_tray"].(map[string]any)
-	if !ok {
+
+	var tray map[string]any
+	if tn == "254" {
+		tray, _ = st["vt_tray"].(map[string]any)
+	} else {
+		// AMS / BMCU 槽位 (0..15)
+		if idxVal, err := strconv.Atoi(tn); err == nil && idxVal >= 0 && idxVal < 16 {
+			if amsRoot, ok := st["ams"].(map[string]any); ok {
+				if amsArr, ok := amsRoot["ams"].([]any); ok && len(amsArr) > (idxVal/4) {
+					if amsUnit, ok := amsArr[idxVal/4].(map[string]any); ok {
+						if trays, ok := amsUnit["tray"].([]any); ok && (idxVal%4) < len(trays) {
+							tray, _ = trays[idxVal%4].(map[string]any)
+						}
+					}
+				}
+			}
+		}
+		if tray == nil {
+			tray, _ = st["vt_tray"].(map[string]any)
+		}
+	}
+	if tray == nil {
 		return ""
 	}
 	btype, _ := tray["tray_type"].(string)
@@ -1216,35 +1328,65 @@ func resolveLoadedFilament(s *Server, st map[string]any, printing bool) string {
 	}
 	label := ""
 	if idx != "" {
-		if specs, err := s.cloudSpecsCached(); err == nil {
-			var byIdx, byIdxColor *bambu.CloudFilament
-			for i := range specs {
-				f := &specs[i]
-				if !strings.EqualFold(strings.TrimSpace(f.FilamentID), idx) {
-					continue
+		// 1. 优先查本地 spools 表（离线自愈，不依赖拓竹云 Token 有效性）
+		var spVendor, spName string
+		colLen := len(col)
+		if colLen > 6 {
+			colLen = 6
+		}
+		if colLen > 0 {
+			_ = s.st.DB.QueryRow(`SELECT bambu_vendor, bambu_filament_name FROM spools WHERE bambu_filament_id = ? AND UPPER(SUBSTR(color_hex,1,6)) = UPPER(?) LIMIT 1`, idx, col[:colLen]).Scan(&spVendor, &spName)
+		}
+		if spVendor == "" {
+			_ = s.st.DB.QueryRow(`SELECT bambu_vendor, bambu_filament_name FROM spools WHERE bambu_filament_id = ? LIMIT 1`, idx).Scan(&spVendor, &spName)
+		}
+		if spVendor != "" {
+			if spName != "" && strings.Contains(strings.ToUpper(spName), strings.ToUpper(btype)) {
+				label = strings.TrimSpace(spVendor + " " + spName)
+			} else {
+				label = strings.TrimSpace(spVendor + " " + btype)
+			}
+		}
+
+		// 2. 本地未命中时再查云端目录
+		if label == "" {
+			if specs, err := s.cloudSpecsCached(); err == nil {
+				var byIdx, byIdxColor *bambu.CloudFilament
+				for i := range specs {
+					f := &specs[i]
+					if !strings.EqualFold(strings.TrimSpace(f.FilamentID), idx) {
+						continue
+					}
+					if byIdx == nil {
+						byIdx = f
+					}
+					fc := strings.ToUpper(strings.TrimPrefix(strings.TrimSpace(f.Color), "#"))
+					if len(fc) >= 6 && len(col) >= 6 && fc[:6] == strings.ToUpper(col[:6]) {
+						byIdxColor = f
+						break
+					}
 				}
-				if byIdx == nil {
-					byIdx = f
+				hit := byIdxColor
+				if hit == nil {
+					hit = byIdx
 				}
-				fc := strings.ToUpper(strings.TrimPrefix(strings.TrimSpace(f.Color), "#"))
-				if len(fc) >= 6 && len(col) >= 6 && fc[:6] == strings.ToUpper(col[:6]) {
-					byIdxColor = f
-					break
+				if hit != nil {
+					vendor := strings.TrimSpace(hit.FilamentVendor)
+					var pBrand string
+					_ = s.st.DB.QueryRow(`SELECT brand FROM products WHERE bambu_preset_id = ?`,
+						strconv.FormatInt(hit.ID, 10)).Scan(&pBrand)
+					if strings.TrimSpace(pBrand) != "" {
+						vendor = strings.TrimSpace(pBrand)
+					}
+					label = strings.TrimSpace(vendor + " " + btype)
 				}
 			}
-			hit := byIdxColor
-			if hit == nil {
-				hit = byIdx
-			}
-			if hit != nil {
-				vendor := strings.TrimSpace(hit.FilamentVendor)
-				var pBrand string
-				_ = s.st.DB.QueryRow(`SELECT brand FROM products WHERE bambu_preset_id = ?`,
-					strconv.FormatInt(hit.ID, 10)).Scan(&pBrand)
-				if strings.TrimSpace(pBrand) != "" {
-					vendor = strings.TrimSpace(pBrand)
-				}
-				label = strings.TrimSpace(vendor + " " + btype)
+		}
+
+		// 3. 兜底查内置常见耗材字典（100% 离线自愈）
+		if label == "" {
+			if staticName, ok := knownFilamentPresets[idx]; ok {
+				label = staticName
 			}
 		}
 	}
@@ -1252,7 +1394,35 @@ func resolveLoadedFilament(s *Server, st map[string]any, printing bool) string {
 		sub, _ := tray["tray_sub_brands"].(string)
 		label = strings.TrimSpace(strings.TrimSpace(sub) + " " + btype)
 	}
-	return label
+	if label == "" && btype != "" {
+		label = btype
+	}
+	if label != "" {
+		if s != nil {
+			s.setLastLoadedFilament(label)
+		}
+		return label
+	}
+	// 空闲期拓竹广播占位灰时，沿用最近一次已知装载耗材（带标注）
+	if !printing && s != nil {
+		if last := s.getLastLoadedFilament(); last != "" {
+			return last + " (最近装载)"
+		}
+	}
+	return ""
+}
+
+func (s *Server) setLastLoadedFilament(name string) {
+	s.lastLoadedMu.Lock()
+	s.lastLoadedFilament = name
+	s.lastLoadedMu.Unlock()
+	_ = s.st.SetMeta("last_loaded_filament", name)
+}
+
+func (s *Server) getLastLoadedFilament() string {
+	s.lastLoadedMu.RLock()
+	defer s.lastLoadedMu.RUnlock()
+	return s.lastLoadedFilament
 }
 
 // isPlaceholderGrayHex 判断是否拓竹的占位灰（#A0A0A0 一类的中性灰）。
@@ -1384,15 +1554,15 @@ func (s *Server) dailyAirPrune() {
 // latestPresence 读最近一条空气样本的"有人"标志（LD2410C 上报）。
 // 样本超过 maxAge（节点离线）视为不可信，返回 ok=false 让调用方回退到打印状态逻辑。
 func (s *Server) latestPresence(maxAge time.Duration) (present, ok bool) {
-	recent, err := s.st.RecentAir(1)
-	if err != nil || len(recent) == 0 {
+	sample, err := s.st.LatestMachineAir()
+	if err != nil || sample == nil {
 		return false, false
 	}
-	ts, _ := recent[0]["ts"].(int64)
+	ts, _ := sample["ts"].(int64)
 	if ts == 0 || time.Since(time.Unix(ts, 0)) > maxAge {
 		return false, false
 	}
-	data, _ := recent[0]["data"].(map[string]any)
+	data, _ := sample["data"].(map[string]any)
 	p, _ := data["presence"].(bool)
 	return p, true
 }
