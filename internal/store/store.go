@@ -208,7 +208,11 @@ type Settings struct {
 		Token string `json:"token"`
 	} `json:"air"`
 	AI struct {
-		Token string `json:"token"`
+		Token    string `json:"token"`
+		Endpoint string `json:"endpoint"`
+		APIKey   string `json:"api_key,omitempty"`
+		Model    string `json:"model"`
+		Provider string `json:"provider"`
 	} `json:"ai"`
 	Automations struct {
 		BoxAlwaysOn       bool   `json:"box_always_on"`
@@ -313,6 +317,9 @@ func (s *Store) SaveSettings(in Settings) error {
 	if in.AI.Token == "" {
 		in.AI.Token = NewID()
 	}
+	if in.AI.APIKey == "" || in.AI.APIKey == "********" {
+		in.AI.APIKey = cur.AI.APIKey
+	}
 	b, err := json.Marshal(in)
 	if err != nil {
 		return err
@@ -360,6 +367,9 @@ func Redact(in Settings) Settings {
 	}
 	if in.AI.Token != "" {
 		in.AI.Token = "********"
+	}
+	if in.AI.APIKey != "" {
+		in.AI.APIKey = "********"
 	}
 	return in
 }
@@ -680,11 +690,17 @@ func (s *Store) InsertAir(ts int64, zone string, payload []byte) error {
 	return err
 }
 
-func (s *Store) RecentAir(limit int) ([]map[string]any, error) {
+func (s *Store) RecentAirByZone(limit int, zone string) ([]map[string]any, error) {
 	if limit <= 0 {
 		limit = 200
 	}
-	rows, err := s.DB.Query(`SELECT ts,zone,payload FROM air_samples ORDER BY ts DESC LIMIT ?`, limit)
+	var rows *sql.Rows
+	var err error
+	if zone == "" {
+		rows, err = s.DB.Query(`SELECT ts,zone,payload FROM air_samples ORDER BY ts DESC LIMIT ?`, limit)
+	} else {
+		rows, err = s.DB.Query(`SELECT ts,zone,payload FROM air_samples WHERE zone=? ORDER BY ts DESC LIMIT ?`, zone, limit)
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -692,18 +708,46 @@ func (s *Store) RecentAir(limit int) ([]map[string]any, error) {
 	var out []map[string]any
 	for rows.Next() {
 		var ts int64
-		var zone, payload string
-		if err := rows.Scan(&ts, &zone, &payload); err != nil {
+		var z, payload string
+		if err := rows.Scan(&ts, &z, &payload); err != nil {
 			return nil, err
 		}
 		var body any
 		_ = json.Unmarshal([]byte(payload), &body)
-		out = append(out, map[string]any{"ts": ts, "zone": zone, "data": body})
+		out = append(out, map[string]any{"ts": ts, "zone": z, "data": body})
 	}
 	if out == nil {
 		out = []map[string]any{}
 	}
 	return out, rows.Err()
+}
+
+func (s *Store) RecentAir(limit int) ([]map[string]any, error) {
+	return s.RecentAirByZone(limit, "")
+}
+
+func (s *Store) LatestAirByZone(zone string) (map[string]any, error) {
+	row := s.DB.QueryRow(`SELECT ts,zone,payload FROM air_samples WHERE zone=? ORDER BY ts DESC LIMIT 1`, zone)
+	var ts int64
+	var z, payload string
+	if err := row.Scan(&ts, &z, &payload); err != nil {
+		return nil, err
+	}
+	var body any
+	_ = json.Unmarshal([]byte(payload), &body)
+	return map[string]any{"ts": ts, "zone": z, "data": body}, nil
+}
+
+func (s *Store) LatestMachineAir() (map[string]any, error) {
+	row := s.DB.QueryRow(`SELECT ts,zone,payload FROM air_samples WHERE zone!='mobile' ORDER BY ts DESC LIMIT 1`)
+	var ts int64
+	var z, payload string
+	if err := row.Scan(&ts, &z, &payload); err != nil {
+		return nil, err
+	}
+	var body any
+	_ = json.Unmarshal([]byte(payload), &body)
+	return map[string]any{"ts": ts, "zone": z, "data": body}, nil
 }
 
 func (s *Store) SaveSnapshot(payload []byte) error {
