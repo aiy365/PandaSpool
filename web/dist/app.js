@@ -2174,14 +2174,43 @@ async function viewMachine() {
     }
 
     const printing = !!d.printing;
-    // 竖屏监控：占位黑框按裁剪后 1080×1920 比例预留（覆盖默认 16:9 CSS）
-    const ezStage = document.getElementById("ezviz");
-    if (ezStage && d.ezviz) {
+    // 竖屏监控：右栏占位底边与左栏齐平——按左栏高度反解视频尺寸（迭代收敛：
+    // 加宽右栏会让左栏变高），宽度上限不超过行宽 46%；窄屏回退为按比例的通栏占位
+    const sizeEzStage = () => {
+      const ezStage = document.getElementById("ezviz");
+      const aside = document.querySelector("#mach .mach-video-col");
+      const mainCol = document.querySelector("#mach .mach-main-col");
+      if (!ezStage || !ezStage.isConnected || !aside || !mainCol || !d.ezviz) return;
       const a = ezvizDisplayAspect(d.ezviz);
-      if (a < 1) {
+      if (window.innerWidth < 1024) {
+        aside.style.width = "";
+        ezStage.style.width = "";
+        ezStage.style.height = "";
         ezStage.style.aspectRatio = String(Math.round(a * 10000) / 10000);
         ezStage.style.maxHeight = "none";
+        return;
       }
+      ezStage.style.aspectRatio = "";
+      ezStage.style.maxHeight = "none";
+      for (let i = 0; i < 4; i++) {
+        const stageRect = ezStage.getBoundingClientRect();
+        const asideRect = aside.getBoundingClientRect();
+        const chromeH = asideRect.height - stageRect.height; // 卡头 + 内边距 + 边框
+        const chromeW = asideRect.width - stageRect.width;
+        const mainH = mainCol.getBoundingClientRect().height;
+        let vh = Math.max(420, mainH - chromeH);
+        let vw = vh * a;
+        const maxW = Math.min(860, window.innerWidth * 0.5);
+        if (vw > maxW) { vw = maxW; vh = vw / a; }
+        aside.style.width = Math.round(vw + chromeW) + "px";
+        ezStage.style.width = Math.round(vw) + "px";
+        ezStage.style.height = Math.round(vh) + "px";
+      }
+    };
+    sizeEzStage();
+    if (!window.__machResizeHooked) {
+      window.__machResizeHooked = true;
+      window.addEventListener("resize", () => { sizeEzStage(); });
     }
     let spdStr = "";
     if (b.spd_lvl != null && String(b.spd_lvl) !== "2") {
@@ -2358,9 +2387,8 @@ async function viewMachine() {
             
             const baseAspect = ezvizDisplayAspect(d.ezviz);
             const cropAspect = baseAspect;
-            const displayH = Math.min(900, Math.round(ezW / cropAspect));
-            
-            ezvizDiv.style.height = displayH + "px";
+            // 占位尺寸由 sizeEzStage 决定（底边与左栏齐平），这里只读取实际渲染尺寸
+            const displayH = ezvizDiv.clientHeight;
             ezvizDiv.style.position = "relative";
             ezvizDiv.style.overflow = "hidden";
             
