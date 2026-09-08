@@ -314,12 +314,6 @@ function renderApp(me) {
         <!-- Right User / Theme Area -->
         <div class="flex items-center gap-2 shrink-0">
           ${themeBtn()}
-          <div class="user-badge-desktop items-center gap-2 pl-2 border-l border-base-content/10">
-            <div class="w-7 h-7 rounded-full bg-primary/20 text-primary font-bold text-xs flex items-center justify-center">
-              P
-            </div>
-            <span class="text-xs font-semibold text-base-content/80">${esc(me.title || "PandaSpool")}</span>
-          </div>
           <button class="btn btn-ghost btn-sm text-xs opacity-75 hover:opacity-100 gap-1" id="out" title="退出系统">
             ${ppIcon("exit")}<span>退出</span>
           </button>
@@ -496,6 +490,14 @@ function fmtLocalMinute(iso) {
   if (isNaN(d)) return String(iso).replace("T", " ").slice(0, 16);
   const p = (n) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+// 萤石竖屏机（源 1080×1920）：按裁剪百分比算出裁剪后显示比例，占位黑框与播放框共用
+function ezvizDisplayAspect(ez) {
+  const cropVals = (String(ez?.crop || "0,0,0,0")).split(",").map((x) => Number(x) || 0);
+  const cl = (v) => Math.max(0, Math.min(99, v || 0));
+  const fW = Math.max(0.05, 1 - (cl(cropVals[2]) + cl(cropVals[3])) / 100);
+  const fH = Math.max(0.05, 1 - (cl(cropVals[0]) + cl(cropVals[1])) / 100);
+  return (9 / 16) * (fW / fH);
 }
 function dedupeName(n) {
   const p = String(n || "").trim().split(/\s+/).filter(Boolean);
@@ -1297,18 +1299,13 @@ async function viewMaterials() {
       return `
       <article class="inv-card card bg-base-100 shadow-sm hover:shadow-md transition border border-base-300/80 hover:border-primary/40 cursor-pointer p-4 rounded-2xl flex flex-col justify-between" data-id="${p.id}">
         <div>
-          <div class="flex items-start justify-between gap-2">
-            <div class="flex items-center gap-2.5">
-              <div class="w-9 h-9 rounded-xl bg-primary/10 text-primary font-bold text-sm flex items-center justify-center border border-primary/15 shrink-0">
-                ${esc((p.brand || "P").substring(0, 2))}
-              </div>
-              <div class="min-w-0">
-                <h2 class="font-bold text-base text-base-content leading-tight truncate">
-                  <span>${esc(p.brand)}</span>
-                  <span class="text-primary font-semibold">${esc(p.product_line || "")}</span>
-                </h2>
-                <div class="text-[11px] text-base-content/50 mt-0.5">${colors.length} 种颜色登记</div>
-              </div>
+            <div class="flex items-start justify-between gap-2">
+            <div class="min-w-0">
+              <h2 class="font-bold text-base text-base-content leading-tight truncate">
+                <span>${esc(p.brand)}</span>
+                <span class="text-primary font-semibold">${esc(p.product_line || "")}</span>
+              </h2>
+              <div class="text-[11px] text-base-content/50 mt-0.5">${colors.length} 种颜色登记</div>
             </div>
             <span class="badge badge-neutral badge-sm font-semibold shrink-0">${esc(p.material)}</span>
           </div>
@@ -2071,33 +2068,9 @@ async function viewMachine() {
         `)}
       </div>
 
-      <!-- 底层双栏：视频监控 + 补光控制 -->
+      <!-- 底层双栏：补光控制(左) + 竖屏视频监控(右) -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        <div class="lg:col-span-8">
-          ${card(`
-            <div class="flex items-center justify-between border-b border-base-300/60 pb-3 mb-3">
-              <h2 class="card-title text-base flex items-center gap-2">
-                <span>📹</span><span>萤石实时视频监控</span>
-              </h2>
-              <div class="flex items-center gap-2">
-                <button type="button" class="btn btn-xs btn-primary gap-1" id="ez-play">▶ 播放视频</button>
-                <button type="button" class="btn btn-xs btn-ghost border border-base-content/15 gap-1" id="ez-stop">■ 停止</button>
-              </div>
-            </div>
-            <div id="ezviz" class="pp-video-stage border border-base-300/80 rounded-xl overflow-hidden shadow-inner flex flex-col items-center justify-center text-sm gap-2">
-              <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-base-100/10 border border-white/10 text-slate-300 text-xs font-mono">
-                <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                <span>萤石实时视频流 · 监控就绪</span>
-              </div>
-              <button type="button" class="btn btn-sm btn-primary gap-2 mt-1 shadow-md" onclick="document.getElementById('ez-play')?.click()">
-                <span>▶</span><span>开始监控视频推流</span>
-              </button>
-              <div class="text-[11px] text-slate-400">720P 低延迟 HLS/FLV · 默认待机节约带宽</div>
-            </div>
-          `)}
-        </div>
-
-        <div class="lg:col-span-4 flex flex-col gap-4">
+        <div class="lg:col-span-8 flex flex-col gap-4">
           ${card(`
             <div class="flex items-center justify-between border-b border-base-300/60 pb-3 mb-3">
               <h2 class="card-title text-base flex items-center gap-2">
@@ -2128,6 +2101,30 @@ async function viewMachine() {
             <div class="p-3 bg-base-200/30 rounded-xl border border-base-300/40 text-[11px] text-base-content/60 space-y-1">
               <div class="font-medium text-base-content/75">• 首层排查：开启顶部补光灯可消除阴影。</div>
               <div class="font-medium text-base-content/75">• 延时说明：推流采用 FLV 低延时协议 (1~2秒)。</div>
+            </div>
+          `)}
+        </div>
+
+        <div class="lg:col-span-4">
+          ${card(`
+            <div class="flex items-center justify-between border-b border-base-300/60 pb-3 mb-3">
+              <h2 class="card-title text-base flex items-center gap-2">
+                <span>📹</span><span>萤石实时视频监控</span>
+              </h2>
+              <div class="flex items-center gap-2">
+                <button type="button" class="btn btn-xs btn-primary gap-1" id="ez-play">▶ 播放视频</button>
+                <button type="button" class="btn btn-xs btn-ghost border border-base-content/15 gap-1" id="ez-stop">■ 停止</button>
+              </div>
+            </div>
+            <div id="ezviz" class="pp-video-stage border border-base-300/80 rounded-xl overflow-hidden shadow-inner flex flex-col items-center justify-center text-sm gap-2">
+              <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-base-100/10 border border-white/10 text-slate-300 text-xs font-mono">
+                <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                <span>萤石实时视频流 · 监控就绪</span>
+              </div>
+              <button type="button" class="btn btn-sm btn-primary gap-2 mt-1 shadow-md" onclick="document.getElementById('ez-play')?.click()">
+                <span>▶</span><span>开始监控视频推流</span>
+              </button>
+              <div class="text-[11px] text-slate-400">720P 低延迟 HLS/FLV · 默认待机节约带宽</div>
             </div>
           `)}
         </div>
@@ -2172,6 +2169,15 @@ async function viewMachine() {
     }
 
     const printing = !!d.printing;
+    // 竖屏监控：占位黑框按裁剪后 1080×1920 比例预留（覆盖默认 16:9 CSS）
+    const ezStage = document.getElementById("ezviz");
+    if (ezStage && d.ezviz) {
+      const a = ezvizDisplayAspect(d.ezviz);
+      if (a < 1) {
+        ezStage.style.aspectRatio = String(Math.round(a * 10000) / 10000);
+        ezStage.style.maxHeight = "none";
+      }
+    }
     const boost = b.print_boost_active ? `<span class="badge badge-warning badge-sm">打印加强开着</span>` : "";
     let spdStr = "";
     if (b.spd_lvl != null && String(b.spd_lvl) !== "2") {
@@ -2351,9 +2357,9 @@ async function viewMachine() {
             const fW = 1 - (cL + cR) / 100;
             const fH = 1 - (cT + cB) / 100;
             
-            const baseAspect = isPortrait ? 9/16 : 16/9;
-            const cropAspect = baseAspect * (fW / fH);
-            const displayH = Math.min(520, Math.round(ezW / cropAspect));
+            const baseAspect = ezvizDisplayAspect(d.ezviz);
+            const cropAspect = baseAspect;
+            const displayH = Math.min(900, Math.round(ezW / cropAspect));
             
             ezvizDiv.style.height = displayH + "px";
             ezvizDiv.style.position = "relative";
@@ -2879,7 +2885,7 @@ function buildAirTooltip(dark, printIntervals, presenceRes) {
       if (presenceRes && presenceRes.hasHistory) {
         const isPres = presenceRes.intervals.some((it) => timeMs >= it.start && timeMs <= it.end);
         if (isPres) {
-          html += `<div class="text-[11px] text-blue-500 font-semibold mb-1">● 打印房间有人在场</div>`;
+          html += `<div class="text-[11px] text-pink-500 font-semibold mb-1">● 打印房间有人在场</div>`;
         }
       }
 
@@ -2920,7 +2926,7 @@ function buildPmChartOption(rangeMin, asc, dark, options = {}) {
   if (options.showBgPresence !== false && presenceRes.hasHistory && presenceRes.intervals.length > 0) {
     presenceRes.intervals.forEach((it) => {
       markAreaData.push([
-        { name: "有人活动", xAxis: it.start, itemStyle: { color: "rgba(59, 130, 246, 0.10)" }, label: { show: false } },
+        { name: "有人活动", xAxis: it.start, itemStyle: { color: "rgba(236, 72, 153, 0.12)" }, label: { show: false } },
         { xAxis: it.end },
       ]);
     });
@@ -3046,7 +3052,7 @@ function buildTvocChartOption(rangeMin, asc, dark, options = {}) {
   if (options.showBgPresence !== false && presenceRes.hasHistory && presenceRes.intervals.length > 0) {
     presenceRes.intervals.forEach((it) => {
       markAreaData.push([
-        { name: "有人活动", xAxis: it.start, itemStyle: { color: "rgba(59, 130, 246, 0.10)" }, label: { show: false } },
+        { name: "有人活动", xAxis: it.start, itemStyle: { color: "rgba(236, 72, 153, 0.12)" }, label: { show: false } },
         { xAxis: it.end },
       ]);
     });
@@ -3057,19 +3063,6 @@ function buildTvocChartOption(rangeMin, asc, dark, options = {}) {
     .map((r) => [r.ts * 1000, Number(r.data.chamber_tvoc ?? r.data.tvoc)]);
 
   // 移动测点 B TVOC：严格断线切断，不跨地点串线
-  const mobRows = asc.filter((r) => r.zone === "mobile" && r.data?.tvoc != null);
-  const mobPoints = [];
-  let lastLoc = null;
-  for (const r of mobRows) {
-    const loc = r.data?.location || "地点未指定";
-    const tsMs = r.ts * 1000;
-    if (lastLoc !== null && lastLoc !== loc) {
-      mobPoints.push([tsMs - 1000, null]);
-    }
-    mobPoints.push([tsMs, Number(r.data.tvoc)]);
-    lastLoc = loc;
-  }
-
   const validCh = chPoints.filter((p) => p && p[1] != null && p[0] >= minTime);
   const peakCh = findPeak(validCh);
 
@@ -3103,16 +3096,6 @@ function buildTvocChartOption(rangeMin, asc, dark, options = {}) {
         data: markAreaData,
       } : undefined,
     },
-    {
-      name: `移动测点 B TVOC (${options.mobLocation || "工作台"})`,
-      type: "line",
-      data: prepareSeriesWithGaps(mobPoints, 180),
-      showSymbol: false,
-      connectNulls: false,
-      smooth: true,
-      lineStyle: { width: 1.8, type: "dashed", color: "#06b6d4" },
-      itemStyle: { color: "#06b6d4" },
-    },
   ];
 
   return {
@@ -3136,6 +3119,102 @@ function buildTvocChartOption(rangeMin, asc, dark, options = {}) {
       axisLabel: { color: txt, formatter: "{value} ppb", fontSize: 11 },
       splitLine: { lineStyle: { color: split } },
     }],
+    series,
+  };
+}
+
+// 移动测点 B：TVOC 与温湿度同图，无打印/人员事件背景（事件只代表打印区，与测点 B 位置无关）
+function buildMobAirChartOption(rangeMin, asc, dark, options = {}) {
+  const txt = dark ? "#a0aec0" : "#4a5568";
+  const split = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
+  const nowMs = Date.now();
+  const minTime = nowMs - rangeMin * 60 * 1000;
+
+  // 移动测点换地点时严格断线，不跨地点串线
+  const cutSeries = (pick) => {
+    const rows = asc.filter((r) => r.zone === "mobile" && pick(r.data) != null);
+    const pts = [];
+    let lastLoc = null;
+    for (const r of rows) {
+      const loc = r.data?.location || "地点未指定";
+      const tsMs = r.ts * 1000;
+      if (lastLoc !== null && lastLoc !== loc) pts.push([tsMs - 1000, null]);
+      pts.push([tsMs, Number(pick(r.data))]);
+      lastLoc = loc;
+    }
+    return pts;
+  };
+
+  const mobTvoc = cutSeries((d) => d?.tvoc);
+  const mobTemp = cutSeries((d) => d?.t_c);
+  const mobRh = cutSeries((d) => d?.rh);
+
+  const series = [
+    {
+      name: "移动测点 TVOC",
+      type: "line",
+      yAxisIndex: 0,
+      data: prepareSeriesWithGaps(mobTvoc, 180),
+      showSymbol: false,
+      connectNulls: false,
+      smooth: true,
+      lineStyle: { width: 2, type: "solid", color: "#06b6d4" },
+      itemStyle: { color: "#06b6d4" },
+    },
+    {
+      name: "移动测点 温度",
+      type: "line",
+      yAxisIndex: 1,
+      data: prepareSeriesWithGaps(mobTemp, 180),
+      showSymbol: false,
+      connectNulls: false,
+      smooth: true,
+      lineStyle: { width: 1.5, type: "solid", color: "#f59e0b" },
+      itemStyle: { color: "#f59e0b" },
+    },
+    {
+      name: "移动测点 湿度",
+      type: "line",
+      yAxisIndex: 1,
+      data: prepareSeriesWithGaps(mobRh, 180),
+      showSymbol: false,
+      connectNulls: false,
+      smooth: true,
+      lineStyle: { width: 1.5, type: "dashed", color: "#3b82f6" },
+      itemStyle: { color: "#3b82f6" },
+    },
+  ];
+
+  return {
+    backgroundColor: "transparent",
+    legend: { right: 16, top: 0, textStyle: { color: txt, fontSize: 12 }, icon: "round", itemWidth: 12, itemHeight: 4 },
+    tooltip: buildAirTooltip(dark, [], { intervals: [], hasHistory: false }),
+    grid: [{ left: 75, right: 65, top: 25, bottom: 28, containLabel: false }],
+    xAxis: [{
+      type: "time",
+      min: minTime,
+      max: nowMs,
+      axisLabel: { color: txt, hideOverlap: true, fontSize: 11, formatter: (val) => formatAirXAxis(val, rangeMin) },
+      axisLine: { lineStyle: { color: split } },
+      splitLine: { show: false },
+    }],
+    yAxis: [
+      {
+        type: "value",
+        min: 0,
+        position: "left",
+        axisLabel: { color: txt, formatter: "{value} ppb", fontSize: 11 },
+        splitLine: { lineStyle: { color: split } },
+      },
+      {
+        type: "value",
+        min: 0,
+        max: 100,
+        position: "right",
+        axisLabel: { color: txt, formatter: "{value}", fontSize: 11 },
+        splitLine: { show: false },
+      },
+    ],
     series,
   };
 }
@@ -3422,10 +3501,34 @@ async function viewAir() {
   // 3 列紧凑指标汇总横条（同一标准：最新采样、区间峰值、近30分钟变化）
   const summaryStripHtml = `
     <div class="pp-air-summary-strip">
-      <!-- 1. 打印房间 PM2.5 -->
+      <!-- 1. 打印仓内温度 -->
       <div class="pp-air-summary-col">
         <div class="pp-air-summary-col-head">
-          <span class="pp-air-summary-col-title">${ppIcon("flask", "w-3.5 h-3.5 text-primary")} 1. 打印房间 PM2.5</span>
+          <span class="pp-air-summary-col-title">${ppIcon("spool", "w-3.5 h-3.5 text-accent")} 1. 打印仓内温度</span>
+          <span class="badge badge-xs ${telem.chamber.exhaustOn ? 'badge-info' : 'badge-ghost'}">${telem.chamber.exhaustOn ? '排风开启' : '排风待机'}</span>
+        </div>
+        <div class="pp-air-summary-cells">
+          <div class="pp-air-cell">
+            <span class="pp-air-cell-label">最新采样</span>
+            <span class="pp-air-cell-val font-mono text-accent">${telem.chamber.t_c != null ? telem.chamber.t_c : '—'} <span class="text-xs font-normal text-base-content/60">℃</span></span>
+            <span class="pp-air-cell-sub">${telem.chamber.ageStr} · ${telem.room.fresh ? '实时' : '历史'}</span>
+          </div>
+          <div class="pp-air-cell">
+            <span class="pp-air-cell-label">区间峰值</span>
+            <span class="pp-air-cell-val font-mono text-accent">${chamberTempPeak ? chamberTempPeak.val : '—'} <span class="text-xs font-normal text-base-content/60">℃</span></span>
+            <span class="pp-air-cell-sub">${chamberTempPeak ? `发生于 ${formatTime(chamberTempPeak.ts)}` : '无峰值'}</span>
+          </div>
+          <div class="pp-air-cell">
+            <span class="pp-air-cell-label">近30分钟变化</span>
+            <span class="pp-air-cell-val text-sm font-semibold ${chamberTempTrend.cls}">${chamberTempTrend.text}</span>
+            <span class="pp-air-cell-sub">${chamberTempTrend.diffStr || '30分钟窗口'}</span>
+          </div>
+        </div>
+      </div>
+      <!-- 2. 打印房间 PM2.5 -->
+      <div class="pp-air-summary-col">
+        <div class="pp-air-summary-col-head">
+          <span class="pp-air-summary-col-title">${ppIcon("flask", "w-3.5 h-3.5 text-primary")} 2. 打印房间 PM2.5</span>
           <span class="badge badge-xs ${telem.room.fresh ? 'badge-success badge-outline' : 'badge-warning badge-outline'}">${telem.room.fresh ? '实时' : '历史'}</span>
         </div>
         <div class="pp-air-summary-cells">
@@ -3447,10 +3550,10 @@ async function viewAir() {
         </div>
       </div>
 
-      <!-- 2. 移动测点 B TVOC -->
+      <!-- 3. 移动测点 B TVOC -->
       <div class="pp-air-summary-col">
         <div class="pp-air-summary-col-head">
-          <span class="pp-air-summary-col-title">${ppIcon("wind", "w-3.5 h-3.5 text-secondary")} 2. 移动测点 B TVOC</span>
+          <span class="pp-air-summary-col-title">${ppIcon("wind", "w-3.5 h-3.5 text-secondary")} 3. 移动测点 B TVOC</span>
           <span class="badge badge-xs ${telem.mobile.fresh ? 'badge-secondary badge-outline' : 'badge-ghost'}">${telem.mobile.fresh ? '实时' : '未更新'}</span>
         </div>
         <div class="pp-air-summary-cells">
@@ -3472,30 +3575,6 @@ async function viewAir() {
         </div>
       </div>
 
-      <!-- 3. 打印仓内温度 -->
-      <div class="pp-air-summary-col">
-        <div class="pp-air-summary-col-head">
-          <span class="pp-air-summary-col-title">${ppIcon("spool", "w-3.5 h-3.5 text-accent")} 3. 打印仓内温度</span>
-          <span class="badge badge-xs ${telem.chamber.exhaustOn ? 'badge-info' : 'badge-ghost'}">${telem.chamber.exhaustOn ? '排风开启' : '排风待机'}</span>
-        </div>
-        <div class="pp-air-summary-cells">
-          <div class="pp-air-cell">
-            <span class="pp-air-cell-label">最新采样</span>
-            <span class="pp-air-cell-val font-mono text-accent">${telem.chamber.t_c != null ? telem.chamber.t_c : '—'} <span class="text-xs font-normal text-base-content/60">℃</span></span>
-            <span class="pp-air-cell-sub">${telem.chamber.ageStr} · ${telem.room.fresh ? '实时' : '历史'}</span>
-          </div>
-          <div class="pp-air-cell">
-            <span class="pp-air-cell-label">区间峰值</span>
-            <span class="pp-air-cell-val font-mono text-accent">${chamberTempPeak ? chamberTempPeak.val : '—'} <span class="text-xs font-normal text-base-content/60">℃</span></span>
-            <span class="pp-air-cell-sub">${chamberTempPeak ? `发生于 ${formatTime(chamberTempPeak.ts)}` : '无峰值'}</span>
-          </div>
-          <div class="pp-air-cell">
-            <span class="pp-air-cell-label">近30分钟变化</span>
-            <span class="pp-air-cell-val text-sm font-semibold ${chamberTempTrend.cls}">${chamberTempTrend.text}</span>
-            <span class="pp-air-cell-sub">${chamberTempTrend.diffStr || '30分钟窗口'}</span>
-          </div>
-        </div>
-      </div>
     </div>
   `;
 
@@ -3508,9 +3587,9 @@ async function viewAir() {
         <span class="text-base-content/75 text-[11px]">A1 打印时段 (浅绿)</span>
       </label>
       <label class="cursor-pointer inline-flex items-center gap-1.5 px-2 py-0.5 bg-base-200/50 rounded-lg text-xs hover:bg-base-200 transition select-none">
-        <input type="checkbox" class="checkbox checkbox-xs text-blue-500 rounded chk-bg-pres" ${showBgPresence ? 'checked' : ''} />
-        <span class="inline-block w-2.5 h-2.5 rounded bg-blue-500/25 border border-blue-500/50"></span>
-        <span class="text-base-content/75 text-[11px]">人员在场 (浅蓝)</span>
+        <input type="checkbox" class="checkbox checkbox-xs text-pink-500 rounded chk-bg-pres" ${showBgPresence ? 'checked' : ''} />
+        <span class="inline-block w-2.5 h-2.5 rounded bg-pink-500/25 border border-pink-500/50"></span>
+        <span class="text-base-content/75 text-[11px]">人员在场 (浅粉)</span>
       </label>
     </div>
   `;
@@ -3564,10 +3643,10 @@ async function viewAir() {
         <div>
           <div class="pp-air-module-title">
             ${ppIcon("wind", "w-4 h-4 text-purple-500")}
-            <span>气相物监测 · 仓内 vs 移动测点</span>
+            <span>气相物监测 · 打印仓内 (C3)</span>
           </div>
           <div class="text-[11px] text-base-content/50 mt-0.5">
-            背景标示打印区事件（不代表测点 B 所在位置）；测点 B (${esc(telem.mobile.location)}) 在离线期间断线保持真实间隙
+            背景标示打印区事件（A1 打印时段 / 人员在场），观察打印活动对仓内 TVOC 的影响
           </div>
         </div>
         <div class="flex items-center gap-3 flex-wrap">
@@ -3578,12 +3657,36 @@ async function viewAir() {
       <div id="air-chart-tvoc" style="height: 300px; width: 100%;"></div>
       <details class="mt-2 text-xs text-base-content/60">
         <summary class="cursor-pointer select-none text-[11px] opacity-75 hover:opacity-100 flex items-center gap-1">
-          <span>统计详情（仓内 / 移动测点对比明细）▼</span>
+          <span>统计详情（仓内均值 / 样本数）▼</span>
         </summary>
         <div class="p-2.5 mt-1 bg-base-200/40 rounded-xl flex items-center gap-6 flex-wrap font-mono text-[11px]">
           <span>仓内 TVOC 均值: <b>${chamberTvocPoints.length ? Math.round(chamberTvocPoints.reduce((s, p) => s + p[1], 0) / chamberTvocPoints.length) : '—'} ppb</b> (${chamberTvocPoints.length} 笔)</span>
-          <span>移动测点有效样本: <b>${mobTvocPoints.length} 笔</b> (${telem.mobile.fresh ? '实时' : telem.mobile.status})</span>
           <span>自定提醒线: <b>220 ppb</b></span>
+        </div>
+      </details>
+    </div>
+
+    <div class="pp-air-module-card">
+      <div class="pp-air-module-head">
+        <div>
+          <div class="pp-air-module-title">
+            ${ppIcon("wind", "w-4 h-4 text-secondary")}
+            <span>气相物监测 · 移动测点 B (${esc(telem.mobile.location)})</span>
+          </div>
+          <div class="text-[11px] text-base-content/50 mt-0.5">
+            左轴 TVOC (ppb) · 右轴温度 (℃) 与相对湿度 (%) 共轴 · 离线期间断线保持真实间隙
+          </div>
+        </div>
+        <span class="text-[11px] text-base-content/40 font-mono">无事件背景标示</span>
+      </div>
+      <div id="air-chart-mob" style="height: 300px; width: 100%;"></div>
+      <details class="mt-2 text-xs text-base-content/60">
+        <summary class="cursor-pointer select-none text-[11px] opacity-75 hover:opacity-100 flex items-center gap-1">
+          <span>统计详情（移动测点样本）▼</span>
+        </summary>
+        <div class="p-2.5 mt-1 bg-base-200/40 rounded-xl flex items-center gap-6 flex-wrap font-mono text-[11px]">
+          <span>移动测点有效样本: <b>${mobTvocPoints.length} 笔</b> (${telem.mobile.fresh ? '实时' : telem.mobile.status})</span>
+          <span>TVOC 区间均值: <b>${mobTvocPoints.length ? Math.round(mobTvocPoints.reduce((s, p) => s + p[1], 0) / mobTvocPoints.length) : '—'} ppb</b></span>
         </div>
       </details>
     </div>
@@ -3672,9 +3775,9 @@ async function viewAir() {
     <div class="pp-air-container">
       ${headerHtml}
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+        ${chamberCardHtml}
         ${roomCardHtml}
         ${mobCardHtml}
-        ${chamberCardHtml}
       </div>
       ${summaryStripHtml}
       ${modulePmHtml}
@@ -3727,10 +3830,12 @@ async function viewAir() {
     const dark = document.documentElement.getAttribute("data-theme") === "dark";
     const elPm = document.getElementById("air-chart-pm");
     const elTvoc = document.getElementById("air-chart-tvoc");
+    const elMob = document.getElementById("air-chart-mob");
     const elEnv = document.getElementById("air-chart-env");
 
     let pmChart = null;
     let tvocChart = null;
+    let mobChart = null;
     let envChart = null;
 
     if (elPm) {
@@ -3742,6 +3847,11 @@ async function viewAir() {
       tvocChart = echarts.init(elTvoc);
       tvocChart.setOption(buildTvocChartOption(range, asc, dark, { mobLocation: telem.mobile.location, showBgPrint, showBgPresence }));
       window.__airCharts.push(tvocChart);
+    }
+    if (elMob) {
+      mobChart = echarts.init(elMob);
+      mobChart.setOption(buildMobAirChartOption(range, asc, dark, { mobLocation: telem.mobile.location }));
+      window.__airCharts.push(mobChart);
     }
     if (elEnv) {
       envChart = echarts.init(elEnv);
