@@ -1622,11 +1622,11 @@ body, .card, .topbar, .btn, .badge { transition: background-color 0.18s ease, bo
 #mach .mach-video-col { width: 100%; }
 @media (min-width: 1024px) {
   #mach.mach-flex { flex-direction: row; }
-  #mach .mach-video-col { width: 400px; order: 2; }
+  /* 栏宽由 JS 按裁剪比例反解写入 --ez-col-w；占位用绝对定位纯像素摆放（避开
+     flex 交叉轴 / aspect-ratio 在部分内核上的尺寸怪癖），底边与左栏齐平 */
+  #mach .mach-video-col { order: 2; width: var(--ez-col-w, 400px); }
   #mach .mach-main-col { order: 1; flex: 1 1 0%; min-width: 0; }
-  /* 视频卡撑满右栏高度，占位底边与左栏齐平（宽度由 JS 按裁剪比例反解） */
   #mach .mach-video-col .card { height: 100%; display: flex; flex-direction: column; }
-  #mach .mach-video-col .card-body { flex: 1 1 0%; min-height: 0; display: flex; flex-direction: column; padding-bottom: 0; }
+  #mach .mach-video-col .card-body { flex: 1 1 0%; min-height: 0; position: relative; padding-bottom: 0; }
   #mach .mach-video-col .card-body > div:first-of-type { flex: 0 0 auto; }
-  #mach #ezviz { flex: 1 1 0%; min-height: 360px; margin: 0 auto; }
 }

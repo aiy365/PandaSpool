@@ -2174,40 +2174,49 @@ async function viewMachine() {
     }
 
     const printing = !!d.printing;
-    // 竖屏监控：右栏占位底边与左栏齐平——按左栏高度反解视频尺寸（迭代收敛：
-    // 加宽右栏会让左栏变高），宽度上限不超过行宽 46%；窄屏回退为按比例的通栏占位
+    // 竖屏监控：右栏占位底边与左栏齐平——按左栏高度反解视频尺寸，宽度上限
+    // 不超过行宽 55%。占位绝对定位 + 纯像素摆放（部分内核上 flex 交叉轴与
+    // aspect-ratio 组合会把 width 钳回拉伸宽，这里完全绕开）。
     const sizeEzStage = () => {
+      const mach = document.getElementById("mach");
       const ezStage = document.getElementById("ezviz");
-      const aside = document.querySelector("#mach .mach-video-col");
       const mainCol = document.querySelector("#mach .mach-main-col");
-      if (!ezStage || !ezStage.isConnected || !aside || !mainCol || !d.ezviz) return;
+      if (!mach || !ezStage || !ezStage.isConnected || !mainCol || !d.ezviz) return;
       const a = ezvizDisplayAspect(d.ezviz);
       if (window.innerWidth < 1024) {
-        aside.style.width = "";
-        ezStage.style.width = "";
-        ezStage.style.height = "";
+        mach.style.removeProperty("--ez-col-w");
+        ["position", "left", "top", "width", "height", "margin"].forEach((p) => ezStage.style.removeProperty(p));
         ezStage.style.aspectRatio = String(Math.round(a * 10000) / 10000);
         ezStage.style.maxHeight = "none";
         return;
       }
-      ezStage.style.aspectRatio = "";
+      const body = ezStage.parentElement;
+      const header = body.children[0];
+      const cs = getComputedStyle(body);
+      const padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0;
+      const padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
+      const bT = parseFloat(cs.borderTopWidth) || 0, bB = parseFloat(cs.borderBottomWidth) || 0;
+      const bL = parseFloat(cs.borderLeftWidth) || 0, bR = parseFloat(cs.borderRightWidth) || 0;
+      const headerH = header.offsetHeight;
+      const availH = Math.max(420, mainCol.getBoundingClientRect().height - headerH - padT - padB - bT - bB);
+      const availW = body.clientWidth - padL - padR - bL - bR;
+      const maxW = Math.min(900, window.innerWidth * 0.55);
+      let vh = availH, vw = vh * a;
+      if (vw > maxW) { vw = maxW; vh = vw / a; }
+      mach.style.setProperty("--ez-col-w", Math.round(vw + padL + padR + bL + bR) + "px");
+      ezStage.style.position = "absolute";
+      ezStage.style.left = Math.round(padL + bL + Math.max(0, (availW - vw) / 2)) + "px";
+      ezStage.style.top = Math.round(headerH + padT + bT + Math.max(0, (availH - vh) / 2)) + "px";
+      ezStage.style.width = Math.round(vw) + "px";
+      ezStage.style.height = Math.round(vh) + "px";
+      ezStage.style.aspectRatio = "auto";
       ezStage.style.maxHeight = "none";
-      for (let i = 0; i < 4; i++) {
-        const stageRect = ezStage.getBoundingClientRect();
-        const asideRect = aside.getBoundingClientRect();
-        const chromeH = asideRect.height - stageRect.height; // 卡头 + 内边距 + 边框
-        const chromeW = asideRect.width - stageRect.width;
-        const mainH = mainCol.getBoundingClientRect().height;
-        let vh = Math.max(420, mainH - chromeH);
-        let vw = vh * a;
-        const maxW = Math.min(860, window.innerWidth * 0.5);
-        if (vw > maxW) { vw = maxW; vh = vw / a; }
-        aside.style.width = Math.round(vw + chromeW) + "px";
-        ezStage.style.width = Math.round(vw) + "px";
-        ezStage.style.height = Math.round(vh) + "px";
-      }
+      ezStage.style.margin = "0";
     };
     sizeEzStage();
+    requestAnimationFrame(() => sizeEzStage());
+    setTimeout(() => sizeEzStage(), 400);
+    setTimeout(() => sizeEzStage(), 1200);
     if (!window.__machResizeHooked) {
       window.__machResizeHooked = true;
       window.addEventListener("resize", () => { sizeEzStage(); });
