@@ -214,6 +214,9 @@ type Settings struct {
 		Model    string `json:"model"`
 		Provider string `json:"provider"`
 	} `json:"ai"`
+	Desk struct {
+		Token string `json:"token"`
+	} `json:"desk"`
 	Automations struct {
 		BoxAlwaysOn       bool   `json:"box_always_on"`
 		PrintBoostMinutes int    `json:"print_boost_minutes"`
@@ -317,6 +320,12 @@ func (s *Store) SaveSettings(in Settings) error {
 	if in.AI.Token == "" {
 		in.AI.Token = NewID()
 	}
+	if in.Desk.Token == "" || in.Desk.Token == "********" {
+		in.Desk.Token = cur.Desk.Token
+	}
+	if in.Desk.Token == "" {
+		in.Desk.Token = NewID()
+	}
 	if in.AI.APIKey == "" || in.AI.APIKey == "********" {
 		in.AI.APIKey = cur.AI.APIKey
 	}
@@ -367,6 +376,9 @@ func Redact(in Settings) Settings {
 	}
 	if in.AI.Token != "" {
 		in.AI.Token = "********"
+	}
+	if in.Desk.Token != "" {
+		in.Desk.Token = "********"
 	}
 	if in.AI.APIKey != "" {
 		in.AI.APIKey = "********"

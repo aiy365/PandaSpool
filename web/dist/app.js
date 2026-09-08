@@ -484,6 +484,14 @@ function fmtTemp1(t) {
   if (t == null || Number.isNaN(n)) return "—";
   return String(Math.round(n * 10) / 10);
 }
+// 床温冷却判定（>38℃ 视为仍在降温）：首页与机台页共用，避免文案口径不一致
+function bedCooling(t) {
+  const n = Number(t);
+  return !isNaN(n) && n > 38;
+}
+function bedStateText(t) {
+  return bedCooling(t) ? `热床降温中 (${fmtTemp1(t)}°C) · 待降温后再取件` : `${fmtTemp1(t)}°C · 已安全降温`;
+}
 function fmtLocalMinute(iso) {
   if (!iso) return "";
   const d = new Date(iso);
@@ -625,12 +633,12 @@ async function viewHome() {
       ${statCard({
         icon: ppIcon("printer", "w-3.5 h-3.5"),
         title: "机台状态",
-        status: mPrinting ? "任务打印中" : (mFinished ? "打印完成可取件" : (m.connected ? "设备待机就绪" : "机台离线")),
-        statusCls: mPrinting ? "text-primary" : (mFinished ? "text-success" : (m.connected ? "text-base-content/80" : "text-error")),
+        status: mPrinting ? "任务打印中" : (mFinished ? (bedCooling(m.bed_temp) ? "打印完成 · 降温中" : "打印完成可取件") : (m.connected ? "设备待机就绪" : "机台离线")),
+        statusCls: mPrinting ? "text-primary" : (mFinished ? (bedCooling(m.bed_temp) ? "text-warning" : "text-success") : (m.connected ? "text-base-content/80" : "text-error")),
         val: mPrinting ? (m.progress ?? 0) : (mFinished ? "100" : (m.connected ? "就绪" : "离线")),
         unit: (mPrinting || mFinished) ? "%" : "",
-        aux: mPrinting ? [["打印耗时", `剩余约 ${m.remaining || "—"} 分钟`], ["活动任务", m.subtask || m.job || "打印中"]] : (mFinished ? [["热床状态", `${fmtTemp1(m.bed_temp)}°C · 已安全降温`], ["最近任务", m.subtask || m.job || "分盘任务已结束"]] : [["通讯协议", m.connected ? "MQTT 局域网在线" : "连接断开"], ["热床工况", `${fmtTemp1(m.bed_temp)}°C · 室温`]]),
-        meta: mPrinting ? "拓竹 A1 高速打印中" : (mFinished ? "底板已降温，可随时安全取件" : "点击进入机台控制与视频监控"),
+        aux: mPrinting ? [["打印耗时", `剩余约 ${m.remaining || "—"} 分钟`], ["活动任务", m.subtask || m.job || "打印中"]] : (mFinished ? [["热床状态", bedStateText(m.bed_temp)], ["最近任务", m.subtask || m.job || "分盘任务已结束"]] : [["通讯协议", m.connected ? "MQTT 局域网在线" : "连接断开"], ["热床工况", `${fmtTemp1(m.bed_temp)}°C · 室温`]]),
+        meta: mPrinting ? "拓竹 A1 高速打印中" : (mFinished ? (bedCooling(m.bed_temp) ? "底板仍热，降温后再取件" : "底板已降温，可随时安全取件") : "点击进入机台控制与视频监控"),
         href: "#/machine"
       })}
       ${statCard({
@@ -734,8 +742,7 @@ async function viewHome() {
               `;
             }
             if (mFinished) {
-              const bedN = Number(m.bed_temp);
-              const isCooling = !isNaN(bedN) && bedN > 38;
+              const isCooling = bedCooling(m.bed_temp);
               return `
                 <div class="py-3.5 px-4 ${isCooling ? 'bg-warning/10 border-warning/30 text-warning' : 'bg-success/10 border-success/30 text-success'} border rounded-xl my-2">
                   <div class="flex items-center gap-2 font-bold text-sm">
@@ -2044,20 +2051,6 @@ async function viewMachine() {
         ${card(`
           <div class="flex items-center justify-between border-b border-base-300/60 pb-3 mb-3">
             <h2 class="card-title text-base flex items-center gap-2">
-              <span>⚡</span><span>智能插座与环境联动</span>
-            </h2>
-            <span class="badge badge-ghost badge-sm text-xs">易微联通道</span>
-          </div>
-          <div class="space-y-1">
-            ${swRow("仓内净化器长开", "box_always", "🌀")}
-            ${swRow("仓内打印加强风量", "box_print", "🚀")}
-            ${swRow("车间有人联动", "room", "👤")}
-          </div>
-        `)}
-
-        ${card(`
-          <div class="flex items-center justify-between border-b border-base-300/60 pb-3 mb-3">
-            <h2 class="card-title text-base flex items-center gap-2">
               <span>🌿</span><span>车间环境空气探头</span>
             </h2>
             <a href="#/air" class="text-xs text-primary hover:underline flex items-center gap-0.5">
@@ -2066,11 +2059,25 @@ async function viewMachine() {
           </div>
           <div id="mach-air"></div>
         `)}
+
+        ${card(`
+          <div class="flex items-center justify-between border-b border-base-300/60 pb-3 mb-3">
+            <h2 class="card-title text-base flex items-center gap-2">
+              <span>⚡</span><span>智能插座与环境联动</span>
+            </h2>
+            <span class="badge badge-ghost badge-sm text-xs">易微联通道</span>
+          </div>
+          <div class="space-y-1">
+            ${swRow("仓内·常开空气净化器", "box_always", "🌀")}
+            ${swRow("仓内·备用空气净化器", "box_print", "🚀")}
+            ${swRow("仓外·空气净化器", "room", "👤")}
+          </div>
+        `)}
       </div>
 
-      <!-- 底层双栏：补光控制(左) + 竖屏视频监控(右) -->
+      <!-- 底层双栏：补光控制(左宽) + 竖屏视频监控(右窄) -->
       <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        <div class="lg:col-span-8 flex flex-col gap-4">
+        <div class="lg:col-span-9 flex flex-col gap-4">
           ${card(`
             <div class="flex items-center justify-between border-b border-base-300/60 pb-3 mb-3">
               <h2 class="card-title text-base flex items-center gap-2">
@@ -2105,9 +2112,9 @@ async function viewMachine() {
           `)}
         </div>
 
-        <div class="lg:col-span-4">
+        <div class="lg:col-span-3">
           ${card(`
-            <div class="flex items-center justify-between border-b border-base-300/60 pb-3 mb-3">
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300/60 pb-3 mb-3">
               <h2 class="card-title text-base flex items-center gap-2">
                 <span>📹</span><span>萤石实时视频监控</span>
               </h2>
@@ -2216,8 +2223,7 @@ async function viewMachine() {
       statTitle = "打印中";
       statDesc = `剩余 ${formatTime(b.remaining)}${calcEnd(b.remaining)}`;
     } else if (isFinished) {
-      const bedN = Number(b.bed_temp);
-      if (!isNaN(bedN) && bedN > 38) {
+      if (bedCooling(b.bed_temp)) {
         statTitle = "任务完成";
         statDesc = `热床降温中 (${fmtTemp1(b.bed_temp)}°C) · 待降温后再取件`;
       } else {
@@ -3418,7 +3424,7 @@ async function viewAir() {
 
   // 顶层 Header
   const headerHtml = `
-    <div class="flex flex-wrap justify-between items-center gap-3 border-b border-base-300/60 pb-3 mb-5">
+    <div class="flex flex-wrap justify-between items-center gap-3 border-b border-base-300/60 pb-3 mb-8">
       <div>
         <h1 class="text-2xl font-bold tracking-tight mb-0.5 flex items-center gap-2">
           ${ppIcon("wind", "w-6 h-6 text-primary")}
@@ -3906,18 +3912,6 @@ async function viewSettings(me) {
       </button>
     </div>
 
-    <!-- 分类快速筛选 Tab -->
-    <div class="flex items-center gap-1.5 overflow-x-auto pb-2 mb-4 pp-tab-group" id="settings-tabs">
-      <button type="button" class="pp-tab-btn active" data-cat="all">全部设置</button>
-      <button type="button" class="pp-tab-btn" data-cat="site">站点与账号</button>
-      <button type="button" class="pp-tab-btn" data-cat="bambu">拓竹云</button>
-      <button type="button" class="pp-tab-btn" data-cat="ewelink">智能插座</button>
-      <button type="button" class="pp-tab-btn" data-cat="ezviz">萤石监控</button>
-      <button type="button" class="pp-tab-btn" data-cat="ai">AI 识图</button>
-      <button type="button" class="pp-tab-btn" data-cat="token">硬件令牌</button>
-      <button type="button" class="pp-tab-btn" data-cat="wecom">企业微信</button>
-    </div>
-
     <div class="pp-settings-grid" id="settings-cards">
     ${card(`
       <h2 class="card-title text-base font-bold flex items-center gap-1.5 mb-2">
@@ -3953,11 +3947,20 @@ async function viewSettings(me) {
     `, "setcat-ai")}
     ${card(`
       <h2 class="card-title text-base font-bold flex items-center gap-1.5 mb-1">
-        <span>🔑</span> ESP32 硬件设备令牌
+        <span>🔑</span> 硬件与桌面端令牌
       </h2>
-      <p class="muted text-xs mb-2">空气探头与桌面端访问本站用的密钥，已脱敏显示——留空保存表示保留原值。</p>
-      <div class="row cols-2">
-        ${field("空气令牌（ESP32 探头）", inputEl("at", `value="${esc(s.air.token)}" placeholder="留空表示保留原值"`))}
+      <p class="muted text-xs mb-2">空气探头（ESP32）与桌面观察端（DeskBadges）各自独立的访问密钥，已脱敏显示——留空保存表示保留原值。</p>
+      <div class="space-y-2">
+        <div class="flex flex-wrap items-end gap-2">
+          <div class="grow min-w-[220px]">${field("空气令牌（ESP32 探头）", inputEl("at", `value="${esc(s.air.token)}" placeholder="留空表示保留原值"`))}</div>
+          <button type="button" class="btn btn-xs btn-ghost border border-base-content/15 gap-1 mb-1" id="gen-at">🎲 生成</button>
+          <button type="button" class="btn btn-xs btn-primary gap-1 mb-1" id="sv-at">保存</button>
+        </div>
+        <div class="flex flex-wrap items-end gap-2">
+          <div class="grow min-w-[220px]">${field("DeskBadges 令牌（桌面观察端）", inputEl("dt", `value="${esc(s.desk?.token || "")}" placeholder="留空表示保留原值"`))}</div>
+          <button type="button" class="btn btn-xs btn-ghost border border-base-content/15 gap-1 mb-1" id="gen-dt">🎲 生成</button>
+          <button type="button" class="btn btn-xs btn-primary gap-1 mb-1" id="sv-dt">保存</button>
+        </div>
       </div>
     `, "setcat-token")}
     ${card(`
@@ -4010,9 +4013,9 @@ async function viewSettings(me) {
       </div>
       <div class="bind-summary" id="ebound">
         ${bindRow("补光灯", "el", s.ewelink.light)}
-        ${bindRow("仓内长开", "eba", s.ewelink.box_always)}
-        ${bindRow("仓内打印加强", "ebp", s.ewelink.box_print)}
-        ${bindRow("车间有人", "ero", s.ewelink.room)}
+        ${bindRow("仓内·常开空气净化器", "eba", s.ewelink.box_always)}
+        ${bindRow("仓内·备用空气净化器", "ebp", s.ewelink.box_print)}
+        ${bindRow("仓外·空气净化器", "ero", s.ewelink.room)}
       </div>
       <div id="elist"></div>
     `, "setcat-ewelink")}
@@ -4085,6 +4088,7 @@ async function viewSettings(me) {
       light: $("#el").value, box_always: $("#eba").value, box_print: $("#ebp").value, room: $("#ero").value },
     ezviz: { app_key: $("#zk").value, app_secret: $("#zs").value, device_serial: $("#zd").value, channel: $("#zc").value, verify_code: $("#zvc")?.value || "", rotation: $("#zr")?.value || "", crop: `${$("#zc_t")?.value||0},${$("#zc_b")?.value||0},${$("#zc_l")?.value||0},${$("#zc_r")?.value||0}` },
     air: { token: $("#at").value },
+    desk: { token: $("#dt")?.value || "" },
     ai: {
       token: $("#ait")?.value || "",
       endpoint: $("#ai_endpoint")?.value?.trim() || "",
@@ -4097,6 +4101,19 @@ async function viewSettings(me) {
     await api("/api/settings", { method: "PUT", body: collect() });
     toast("AI 设置已保存", "success");
   });
+  // 访问令牌：生成（本地随机 32 位 hex）+ 单独保存
+  const genToken = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
+  const bindToken = (inp, genId, svId) => {
+    const gen = $(genId);
+    if (gen) gen.onclick = () => { $(inp).value = genToken(); toast("已生成新令牌，点「保存」后生效", "info", { id: "set" }); };
+    const sv = $(svId);
+    if (sv) sv.onclick = (e) => busy(e.currentTarget, async () => {
+      await api("/api/settings", { method: "PUT", body: collect() });
+      toast("令牌已保存，即刻生效", "success", { id: "set" });
+    }, "set");
+  };
+  bindToken("#at", "#gen-at", "#sv-at");
+  bindToken("#dt", "#gen-dt", "#sv-dt");
   const saveSite = async () => {
     await api("/api/settings", { method: "PUT", body: collect() });
     updateAppTitle($("#st").value.trim());
@@ -4150,9 +4167,9 @@ async function viewSettings(me) {
   const renderDevices = (devs) => {
     const roles = [
       ["light", "补光"],
-      ["box_always", "仓内长开"],
-      ["box_print", "打印加强"],
-      ["room", "车间有人"],
+      ["box_always", "仓内·常开净化器"],
+      ["box_print", "仓内·备用净化器"],
+      ["room", "仓外·净化器"],
     ];
     const bound = { light: $("#el").value, box_always: $("#eba").value, box_print: $("#ebp").value, room: $("#ero").value };
     if (!devs || !devs.length) {
@@ -4190,7 +4207,7 @@ async function viewSettings(me) {
     await api("/api/settings", { method: "PUT", body: collect() });
     const r = await api("/api/settings/test/ewelink", { method: "POST", body: {} });
     renderDevices(r.devices || []);
-    toast("登录成功。点「仓内长开」这类按钮绑定，再点试开/试关。", "success", { id: "ew" });
+    toast("登录成功。点「仓内·常开空气净化器」这类条目绑定，再点试开/试关。", "success", { id: "ew" });
   }, "ew");
   $("#elist").onclick = async (e) => {
     const bind = e.target.closest("[data-bind]");
@@ -4237,21 +4254,6 @@ async function viewSettings(me) {
     const d = describeStatus(await api("/api/settings/test/ezviz", { method: "POST", body: {} }));
     toast(d.t, d.k, { id: "ez" });
   }, "ez");
-
-  $("#settings-tabs")?.addEventListener("click", (e) => {
-    const btn = e.target.closest("[data-cat]");
-    if (!btn) return;
-    document.querySelectorAll("#settings-tabs .pp-tab-btn").forEach(b => b.classList.remove("active"));
-    btn.classList.add("active");
-    const cat = btn.dataset.cat;
-    document.querySelectorAll("#settings-cards > .card, .pp-settings-grid > .card, .masonry-grid > section").forEach(cardEl => {
-      if (cat === "all" || cardEl.classList.contains(`setcat-${cat}`)) {
-        cardEl.style.display = "";
-      } else {
-        cardEl.style.display = "none";
-      }
-    });
-  });
 }
 
 async function viewSpools() {
