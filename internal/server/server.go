@@ -357,7 +357,7 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) {
 	out["opened"] = spOpened
 	out["spools"] = spTotal
 	st := s.bambu.Status()
-	if fil := resolveLoadedFilament(s, st, s.bambu.HasPrintState()); fil != "" {
+	if fil, _ := resolveLoadedFilament(s, st, s.bambu.HasPrintState()); fil != "" {
 		st["loaded_filament"] = fil
 	}
 	gcode, _ := st["gcode_state"].(string)
@@ -1077,7 +1077,7 @@ func (s *Server) desk(w http.ResponseWriter, r *http.Request) { s.machine(w, r) 
 
 func (s *Server) machine(w http.ResponseWriter, r *http.Request) {
 	bambuStatus := s.bambu.Status()
-	if fil := resolveLoadedFilament(s, bambuStatus, s.bambu.HasPrintState()); fil != "" {
+	if fil, _ := resolveLoadedFilament(s, bambuStatus, s.bambu.HasPrintState()); fil != "" {
 		bambuStatus["loaded_filament"] = fil
 	}
 	cfg := s.st.LoadSettings()
@@ -1251,8 +1251,11 @@ func (s *Server) ingestAir(w http.ResponseWriter, r *http.Request) {
 	stage, _ := st["stage"].(string)
 	printing := bambu.PrintingFromState(gcode, stage)
 	payload["printing"] = printing
-	if fil := resolveLoadedFilament(s, st, printing); fil != "" {
+	if fil, colHex := resolveLoadedFilament(s, st, printing); fil != "" {
 		payload["filament"] = fil
+		if colHex != "" {
+			payload["filament_color"] = colHex
+		}
 	}
 	raw, _ := json.Marshal(payload)
 	if err := s.st.InsertAir(ts, zone, raw); err != nil {
@@ -1308,7 +1311,7 @@ var knownFilamentPresets = map[string]string{
 }
 
 // 识别链：打印机广播的 tray_info_idx + tray_color → 本地 spools 表 → 云端目录条目 → 内置离线字典 → 打印机 tray_type。
-func resolveLoadedFilament(s *Server, st map[string]any, printing bool) string {
+func resolveLoadedFilament(s *Server, st map[string]any, printing bool) (string, string) {
 	var tn string
 	switch v := st["tray_now"].(type) {
 	case string:
@@ -1319,7 +1322,7 @@ func resolveLoadedFilament(s *Server, st map[string]any, printing bool) string {
 		tn = strconv.Itoa(v)
 	}
 	if tn == "" || tn == "255" {
-		return ""
+		return "", ""
 	}
 
 	var tray map[string]any
@@ -1343,7 +1346,7 @@ func resolveLoadedFilament(s *Server, st map[string]any, printing bool) string {
 		}
 	}
 	if tray == nil {
-		return ""
+		return "", ""
 	}
 	btype, _ := tray["tray_type"].(string)
 	btype = strings.TrimSpace(btype)
@@ -1351,8 +1354,12 @@ func resolveLoadedFilament(s *Server, st map[string]any, printing bool) string {
 	col = strings.TrimPrefix(strings.TrimSpace(col), "#")
 	idx, _ := tray["tray_info_idx"].(string)
 	idx = strings.TrimSpace(idx)
+	colHex := ""
+	if len(col) >= 6 {
+		colHex = "#" + strings.ToUpper(col[:6])
+	}
 	if len(col) >= 6 && isPlaceholderGrayHex(col[:6]) && tn == "254" && !printing {
-		return "" // 闲置 + 占位灰 = 拓竹没在报真实耗材
+		return "", "" // 闲置 + 占位灰 = 拓竹没在报真实耗材
 	}
 	label := ""
 	if idx != "" {
@@ -1429,15 +1436,15 @@ func resolveLoadedFilament(s *Server, st map[string]any, printing bool) string {
 		if s != nil {
 			s.setLastLoadedFilament(label)
 		}
-		return label
+		return label, colHex
 	}
 	// 空闲期拓竹广播占位灰时，沿用最近一次已知装载耗材（带标注）
 	if !printing && s != nil {
 		if last := s.getLastLoadedFilament(); last != "" {
-			return last + " (最近装载)"
+			return last + " (最近装载)", ""
 		}
 	}
-	return ""
+	return "", ""
 }
 
 func (s *Server) setLastLoadedFilament(name string) {

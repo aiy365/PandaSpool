@@ -2204,6 +2204,9 @@ async function viewMachine() {
       const maxW = Math.min(900, window.innerWidth * 0.55);
       let vh = availH, vw = vh * a;
       if (vw > maxW) { vw = maxW; vh = vw / a; }
+      // 再小一点点 + 底部留出与栏间距一致的呼吸边
+      vh = Math.round(vh * 0.92);
+      vw = Math.round(vh * a);
       mach.style.setProperty("--ez-col-w", Math.round(vw + padL + padR + bL + bR) + "px");
       ezStage.style.position = "absolute";
       ezStage.style.left = Math.round(padL + bL + Math.max(0, (availW - vw) / 2)) + "px";
@@ -2748,23 +2751,27 @@ function extractPrintIntervals(asc, minMs, maxMs) {
     const r = rows[i];
     const ts = r.ts * 1000;
     const isP = !!(r.data && r.data.printing);
+    // 进料耗材取打印时段内样本上盖的章（入库时刻记录），首条为准
+    const fil = String((r.data && r.data.filament) || "").replace(" (最近装载)", "");
+    const filColor = String((r.data && r.data.filament_color) || "");
 
     if (isP) {
       if (!cur) {
-        cur = { start: ts, end: ts };
+        cur = { start: ts, end: ts, fil, filColor };
       } else {
         if (ts - cur.end <= 240 * 1000) {
           cur.end = ts;
+          if (!cur.fil && fil) { cur.fil = fil; cur.filColor = filColor; }
         } else {
           if (cur.end > cur.start) intervals.push(cur);
-          else intervals.push({ start: cur.start, end: cur.start + 60000 });
-          cur = { start: ts, end: ts };
+          else intervals.push({ start: cur.start, end: cur.start + 60000, fil: cur.fil, filColor: cur.filColor });
+          cur = { start: ts, end: ts, fil, filColor };
         }
       }
     } else {
       if (cur) {
         if (cur.end > cur.start) intervals.push(cur);
-        else intervals.push({ start: cur.start, end: cur.start + 60000 });
+        else intervals.push({ start: cur.start, end: cur.start + 60000, fil: cur.fil, filColor: cur.filColor });
         cur = null;
       }
     }
@@ -2772,13 +2779,15 @@ function extractPrintIntervals(asc, minMs, maxMs) {
 
   if (cur) {
     if (cur.end > cur.start) intervals.push(cur);
-    else intervals.push({ start: cur.start, end: Math.min(maxMs, cur.start + 60000) });
+    else intervals.push({ start: cur.start, end: Math.min(maxMs, cur.start + 60000), fil: cur.fil, filColor: cur.filColor });
   }
 
   return intervals
     .map((it) => ({
       start: Math.max(minMs, it.start),
       end: Math.min(maxMs, it.end),
+      fil: it.fil || "",
+      filColor: it.filColor || "",
     }))
     .filter((it) => it.end > it.start);
 }
@@ -2915,9 +2924,9 @@ function buildAirTooltip(dark, printIntervals, presenceRes) {
       let html = `<div class="font-mono text-xs pb-1 mb-1 border-b border-base-content/10 font-bold">${hh}:${mm}:${ss}</div>`;
 
       // 提示背景事件
-      const isP = printIntervals.some((it) => timeMs >= it.start && timeMs <= it.end);
-      if (isP) {
-        html += `<div class="text-[11px] text-emerald-500 font-semibold mb-0.5">● 打印区活动中 (A1)</div>`;
+      const hitP = printIntervals.find((it) => timeMs >= it.start && timeMs <= it.end);
+      if (hitP) {
+        html += `<div class="text-[11px] text-emerald-500 font-semibold mb-0.5">● 打印区活动中 (A1)${hitP.fil ? " · " + esc(hitP.fil) : ""}</div>`;
       }
       if (presenceRes && presenceRes.hasHistory) {
         const isPres = presenceRes.intervals.some((it) => timeMs >= it.start && timeMs <= it.end);
@@ -2942,6 +2951,34 @@ function buildAirTooltip(dark, printIntervals, presenceRes) {
   };
 }
 
+function hexRgba(hex, alpha) {
+  const c = String(hex || "").replace("#", "");
+  if (c.length < 6) return "";
+  const r = parseInt(c.slice(0, 2), 16), g = parseInt(c.slice(2, 4), 16), b = parseInt(c.slice(4, 6), 16);
+  if ([r, g, b].some((v) => isNaN(v))) return "";
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+// A1 打印时段背景带：按该时段进料耗材着色并标注名称（进料时刻样本上的章）
+function printMarkAreaData(printIntervals, dark) {
+  const data = [];
+  (printIntervals || []).forEach((it) => {
+    const tint = hexRgba(it.filColor, 0.16) || "rgba(34, 197, 94, 0.12)";
+    data.push([
+      {
+        name: it.fil || "A1 打印",
+        xAxis: it.start,
+        itemStyle: { color: tint },
+        label: {
+          show: true, position: "insideTop", formatter: it.fil || "A1 打印",
+          color: dark ? "#4ade80" : "#15803d", fontSize: 10,
+        },
+      },
+      { xAxis: it.end },
+    ]);
+  });
+  return data;
+}
+
 function buildPmChartOption(rangeMin, asc, dark, options = {}) {
   const txt = dark ? "#a0aec0" : "#4a5568";
   const split = dark ? "rgba(255,255,255,0.08)" : "rgba(0,0,0,0.06)";
@@ -2953,12 +2990,7 @@ function buildPmChartOption(rangeMin, asc, dark, options = {}) {
 
   const markAreaData = [];
   if (options.showBgPrint !== false && printIntervals.length > 0) {
-    printIntervals.forEach((it) => {
-      markAreaData.push([
-        { name: "A1打印", xAxis: it.start, itemStyle: { color: "rgba(34, 197, 94, 0.12)" }, label: { show: false } },
-        { xAxis: it.end },
-      ]);
-    });
+    markAreaData.push(...printMarkAreaData(printIntervals, dark));
   }
   if (options.showBgPresence !== false && presenceRes.hasHistory && presenceRes.intervals.length > 0) {
     presenceRes.intervals.forEach((it) => {
@@ -3079,12 +3111,7 @@ function buildTvocChartOption(rangeMin, asc, dark, options = {}) {
 
   const markAreaData = [];
   if (options.showBgPrint !== false && printIntervals.length > 0) {
-    printIntervals.forEach((it) => {
-      markAreaData.push([
-        { name: "A1打印", xAxis: it.start, itemStyle: { color: "rgba(34, 197, 94, 0.12)" }, label: { show: false } },
-        { xAxis: it.end },
-      ]);
-    });
+    markAreaData.push(...printMarkAreaData(printIntervals, dark));
   }
   if (options.showBgPresence !== false && presenceRes.hasHistory && presenceRes.intervals.length > 0) {
     presenceRes.intervals.forEach((it) => {
@@ -3621,7 +3648,7 @@ async function viewAir() {
       <label class="cursor-pointer inline-flex items-center gap-1.5 px-2 py-0.5 bg-base-200/50 rounded-lg text-xs hover:bg-base-200 transition select-none">
         <input type="checkbox" class="checkbox checkbox-xs text-emerald-500 rounded chk-bg-print" ${showBgPrint ? 'checked' : ''} />
         <span class="inline-block w-2.5 h-2.5 rounded bg-emerald-500/25 border border-emerald-500/50"></span>
-        <span class="text-base-content/75 text-[11px]">A1 打印时段 (浅绿)</span>
+        <span class="text-base-content/75 text-[11px]">A1 打印时段 (按进料耗材着色)</span>
       </label>
       <label class="cursor-pointer inline-flex items-center gap-1.5 px-2 py-0.5 bg-base-200/50 rounded-lg text-xs hover:bg-base-200 transition select-none">
         <input type="checkbox" class="checkbox checkbox-xs text-pink-500 rounded chk-bg-pres" ${showBgPresence ? 'checked' : ''} />
