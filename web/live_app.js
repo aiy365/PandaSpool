@@ -2073,7 +2073,8 @@ async function viewMachine() {
       <div id="mach-top-card"></div>
 
       <!-- 中层双栏：智能插座联动 + 空气探头 -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      <!-- 左栏中部：空气探头 + 插座联动（左栏较窄，上下堆叠保证磁贴不挤） -->
+      <div class="space-y-5">
         ${card(`
           <div class="flex items-center justify-between border-b border-base-300/60 pb-3 mb-3">
             <h2 class="card-title text-base flex items-center gap-2">
@@ -2396,9 +2397,9 @@ async function viewMachine() {
             
             const baseAspect = ezvizDisplayAspect(d.ezviz);
             const cropAspect = baseAspect;
-            // 占位尺寸由 sizeEzStage 决定（底边与左栏齐平），这里只读取实际渲染尺寸
+            // 占位尺寸由 sizeEzStage 决定（绝对定位 + 底边与左栏齐平），这里只读
+            // 取实际渲染尺寸；不要改写 position，否则播放时占位会跳回文档流
             const displayH = ezvizDiv.clientHeight;
-            ezvizDiv.style.position = "relative";
             ezvizDiv.style.overflow = "hidden";
             
             const cropWrapper = document.createElement("div");
