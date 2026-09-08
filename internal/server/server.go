@@ -216,6 +216,26 @@ func (s *Server) authAny(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+// deskTokenOK：桌面观察端（DeskBadges）专用令牌，与 AI 令牌区分。
+func (s *Server) deskTokenOK(r *http.Request) bool {
+	cfg := s.st.LoadSettings()
+	tok := bearerToken(r)
+	return cfg.Desk.Token != "" && tok == cfg.Desk.Token
+}
+
+// authDesk：桌面端数据接口鉴权——会话、AI 令牌（旧桌面客户端兼容）或 DeskBadges 令牌任一通过。
+func (s *Server) authDesk(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if s.sessionUser(r) != "" || s.aiTokenOK(r) || s.deskTokenOK(r) {
+			next(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte(`{"error":"未登录"}`))
+	}
+}
+
 func (s *Server) aiTokenOK(r *http.Request) bool {
 	cfg := s.st.LoadSettings()
 	tok := bearerToken(r)
@@ -234,7 +254,6 @@ func (s *Server) authAI(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
-func (s *Server) authDesk(next http.HandlerFunc) http.HandlerFunc { return s.authAny(next) }
 
 // ---- 基础 ----
 
