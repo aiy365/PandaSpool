@@ -2042,8 +2042,34 @@ async function viewMachine() {
   if (!$("#mach")) pageLoading("正在连接机台…");
   const ensureShell = () => {
     if ($("#mach")) return;
-    $("#page").innerHTML = `<div id="mach" class="space-y-5">
-      <!-- 顶部通栏：机台工况主卡 -->
+    $("#page").innerHTML = `<div id="mach" class="mach-flex">
+      <!-- 右栏：竖屏视频监控（DOM 在前 = 手机端置顶；桌面端 order 靠右整栏） -->
+      <aside class="mach-video-col">
+          ${card(`
+            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300/60 pb-3 mb-3">
+              <h2 class="card-title text-base flex items-center gap-2">
+                <span>📹</span><span>萤石实时视频监控</span>
+              </h2>
+              <div class="flex items-center gap-2">
+                <button type="button" class="btn btn-xs btn-primary gap-1" id="ez-play">▶ 播放视频</button>
+                <button type="button" class="btn btn-xs btn-ghost border border-base-content/15 gap-1" id="ez-stop">■ 停止</button>
+              </div>
+            </div>
+            <div id="ezviz" class="pp-video-stage border border-base-300/80 rounded-xl overflow-hidden shadow-inner flex flex-col items-center justify-center text-sm gap-2">
+              <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-base-100/10 border border-white/10 text-slate-300 text-xs font-mono">
+                <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+                <span>萤石实时视频流 · 监控就绪</span>
+              </div>
+              <button type="button" class="btn btn-sm btn-primary gap-2 mt-1 shadow-md" onclick="document.getElementById('ez-play')?.click()">
+                <span>▶</span><span>开始监控视频推流</span>
+              </button>
+              <div class="text-[11px] text-slate-400">720P 低延迟 HLS/FLV · 默认待机节约带宽</div>
+            </div>
+          `)}
+      </aside>
+
+      <!-- 左栏：机台全部信息卡 -->
+      <div class="mach-main-col">
       <div id="mach-top-card"></div>
 
       <!-- 中层双栏：智能插座联动 + 空气探头 -->
@@ -2075,10 +2101,7 @@ async function viewMachine() {
         `)}
       </div>
 
-      <!-- 底层双栏：补光控制(左宽) + 竖屏视频监控(右窄) -->
-      <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
-        <div class="lg:col-span-9 flex flex-col gap-4">
-          ${card(`
+      ${card(`
             <div class="flex items-center justify-between border-b border-base-300/60 pb-3 mb-3">
               <h2 class="card-title text-base flex items-center gap-2">
                 <span>💡</span><span>补光与控制面板</span>
@@ -2110,33 +2133,8 @@ async function viewMachine() {
               <div class="font-medium text-base-content/75">• 延时说明：推流采用 FLV 低延时协议 (1~2秒)。</div>
             </div>
           `)}
-        </div>
-
-        <div class="lg:col-span-3">
-          ${card(`
-            <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300/60 pb-3 mb-3">
-              <h2 class="card-title text-base flex items-center gap-2">
-                <span>📹</span><span>萤石实时视频监控</span>
-              </h2>
-              <div class="flex items-center gap-2">
-                <button type="button" class="btn btn-xs btn-primary gap-1" id="ez-play">▶ 播放视频</button>
-                <button type="button" class="btn btn-xs btn-ghost border border-base-content/15 gap-1" id="ez-stop">■ 停止</button>
-              </div>
-            </div>
-            <div id="ezviz" class="pp-video-stage border border-base-300/80 rounded-xl overflow-hidden shadow-inner flex flex-col items-center justify-center text-sm gap-2">
-              <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-base-100/10 border border-white/10 text-slate-300 text-xs font-mono">
-                <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                <span>萤石实时视频流 · 监控就绪</span>
-              </div>
-              <button type="button" class="btn btn-sm btn-primary gap-2 mt-1 shadow-md" onclick="document.getElementById('ez-play')?.click()">
-                <span>▶</span><span>开始监控视频推流</span>
-              </button>
-              <div class="text-[11px] text-slate-400">720P 低延迟 HLS/FLV · 默认待机节约带宽</div>
-            </div>
-          `)}
-        </div>
       </div>
-    </div>`;
+</div>`;
 
     $("#mach").onchange = async (e) => {
       const t = e.target.closest("[data-t]");
@@ -2185,11 +2183,10 @@ async function viewMachine() {
         ezStage.style.maxHeight = "none";
       }
     }
-    const boost = b.print_boost_active ? `<span class="badge badge-warning badge-sm">打印加强开着</span>` : "";
     let spdStr = "";
     if (b.spd_lvl != null && String(b.spd_lvl) !== "2") {
         const lvlMap = {"1": "静音 50%", "3": "狂暴 124%", "4": "荒野狂飙 166%"};
-        spdStr = `<span class="badge badge-secondary badge-sm">${lvlMap[String(b.spd_lvl)] || "未知速度"}</span>`;
+        spdStr = lvlMap[String(b.spd_lvl)] || "";
     }
 
     const formatTemp = (t) => t != null ? Math.round(Number(t)) : "—";
@@ -2260,10 +2257,6 @@ async function viewMachine() {
                 ${b.print_boost_active ? '<span>·</span><span class="text-warning">打印加强开启</span>' : ''}
               </div>
             </div>
-          </div>
-          <div class="flex items-center gap-2">
-            ${boost}
-            ${spdStr}
           </div>
         </div>
 

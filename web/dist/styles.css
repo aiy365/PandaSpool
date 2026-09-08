@@ -1616,3 +1616,12 @@ body, .card, .topbar, .btn, .badge { transition: background-color 0.18s ease, bo
 /* Spacing utilities (auto-completed: 模板用到但此前缺失，修复内容贴边) */
 .p-3 { padding: 0.75rem; }
 .p-5 { padding: 1.25rem; }
+
+/* 机台页：视频独占右栏（DOM 在前=手机端置顶，桌面端 order 靠右整栏） */
+#mach.mach-flex { display: flex; flex-direction: column; gap: 1.25rem; align-items: stretch; }
+#mach .mach-video-col { width: 100%; }
+@media (min-width: 1024px) {
+  #mach.mach-flex { flex-direction: row; align-items: flex-start; }
+  #mach .mach-video-col { width: 400px; order: 2; }
+  #mach .mach-main-col { order: 1; flex: 1 1 0%; min-width: 0; }
+}
