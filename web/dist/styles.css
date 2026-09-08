@@ -460,11 +460,9 @@ button.stk-bar-btn:hover {
 @media (min-width: 800px) {
   .nav-mobile { display: none !important; }
   .nav-desktop { display: flex !important; }
-  .user-badge-desktop { display: flex !important; }
 }
 @media (max-width: 799px) {
   .nav-desktop { display: none !important; }
-  .user-badge-desktop { display: none !important; }
   .hide-on-mobile { display: none !important; }
   .topbar-inner { padding: 0.35rem 0.5rem; }
   .masonry-grid { column-count: 1 !important; }
@@ -496,25 +494,26 @@ button.stk-bar-btn:hover {
 }
 .inv-card { margin-bottom: 0; display: flex; flex-direction: column; }
 
-/* 3. Settings Grid & Form Breathing Room (Max 2 columns on desktop, 1 on mobile) */
+/* 3. Settings Grid & Form Breathing Room (masonry: 每列独立堆叠，短卡下方不留洞) */
 .pp-settings-grid, .settings-grid, .masonry-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--pp-gap-card);
-  align-items: start;
+  display: block;
+  columns: 2;
+  column-gap: var(--pp-gap-card);
 }
 @media (max-width: 900px) {
   .pp-settings-grid, .settings-grid, .masonry-grid {
-    grid-template-columns: 1fr;
+    columns: 1;
   }
 }
 .pp-settings-grid > .card, .settings-grid > .card, .masonry-grid > .card {
   height: auto;
   min-height: 0;
-  margin-bottom: 0;
+  margin-bottom: var(--pp-gap-card);
+  break-inside: avoid;
 }
 .pp-settings-grid .card-wide, .settings-grid .card-wide, .masonry-grid .card-wide {
-  grid-column: 1 / -1;
+  column-span: all;
+  margin-top: var(--pp-gap-card);
 }
 .form-control { margin-bottom: 0.8rem; }
 .form-control:last-child { margin-bottom: 0; }
