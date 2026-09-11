@@ -179,6 +179,8 @@ type Settings struct {
 		Password    string `json:"password,omitempty"`
 		PrinterSN   string `json:"printer_sn"`
 		AccessToken string `json:"access_token,omitempty"`
+		LanHost     string `json:"lan_host"`
+		LanCode     string `json:"lan_code,omitempty"`
 	} `json:"bambu"`
 	EWeLink struct {
 		Region       string `json:"region"`
@@ -302,6 +304,9 @@ func (s *Store) SaveSettings(in Settings) error {
 	if in.Bambu.AccessToken == "" || in.Bambu.AccessToken == "********" {
 		in.Bambu.AccessToken = cur.Bambu.AccessToken
 	}
+	if in.Bambu.LanCode == "" || in.Bambu.LanCode == "********" {
+		in.Bambu.LanCode = cur.Bambu.LanCode
+	}
 	if in.Automations.WeComSecret == "" || in.Automations.WeComSecret == "********" {
 		in.Automations.WeComSecret = cur.Automations.WeComSecret
 	}
@@ -355,6 +360,9 @@ func Redact(in Settings) Settings {
 	}
 	if in.EWeLink.RefreshToken != "" {
 		in.EWeLink.RefreshToken = "********"
+	}
+	if in.Bambu.LanCode != "" {
+		in.Bambu.LanCode = "********"
 	}
 	if in.Ezviz.AppSecret != "" {
 		in.Ezviz.AppSecret = "********"

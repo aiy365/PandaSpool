@@ -4033,6 +4033,9 @@ async function viewSettings(me) {
         ${field("密码", inputEl("bp", `type="password" placeholder="不改请留空"`))}
         ${field("短信/邮箱验证码", inputEl("bc", `placeholder="6 位"`))}
         ${field("或粘贴 accessToken", inputEl("btok", `type="password" placeholder="可选，高级用法"`))}
+        <div class="mt-2 pt-2 border-t border-base-300/50 text-[11px] text-base-content/50">局域网直连（打印机与中枢同网段时填写，填了就走本地 8883 不依赖拓竹云）</div>
+        ${field("打印机局域网 IP", inputEl("blip", `value="${esc(s.bambu.lan_host || "")}" placeholder="如 192.168.1.202，留空走云端"`))}
+        ${field("局域网访问码", inputEl("blcode", `type="password" value="${esc(s.bambu.lan_code || "")}" placeholder="打印机屏幕上的访问码，留空保留"`))}
       </div>
       <div class="card-actions flex-wrap mt-3">
         <button class="btn btn-ghost btn-sm" id="tb">① 保存账号</button>
@@ -4141,7 +4144,7 @@ async function viewSettings(me) {
     </div>`;
   const collect = () => ({
     site: { title: $("#st").value },
-    bambu: { region: $("#br").value, account: $("#ba").value, password: $("#bp").value, printer_sn: $("#bsn").value },
+    bambu: { region: $("#br").value, account: $("#ba").value, password: $("#bp").value, printer_sn: $("#bsn").value, lan_host: $("#blip")?.value || "", lan_code: $("#blcode")?.value || "" },
     ewelink: { region: $("#er").value, account: $("#ea").value, password: $("#ep").value, app_id: $("#eid")?.value || "", app_secret: $("#es")?.value || "",
       light: $("#el").value, box_always: $("#eba").value, box_print: $("#ebp").value, room: $("#ero").value },
     ezviz: { app_key: $("#zk").value, app_secret: $("#zs").value, device_serial: $("#zd").value, channel: $("#zc").value, verify_code: $("#zvc")?.value || "", rotation: $("#zr")?.value || "", crop: `${$("#zc_t")?.value||0},${$("#zc_b")?.value||0},${$("#zc_l")?.value||0},${$("#zc_r")?.value||0}` },

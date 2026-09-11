@@ -27,6 +27,8 @@ type Client struct {
 	mqtt     mqtt.Client
 	mqttUser string
 	snapshot map[string]any
+	lanHost  string
+	lanCode  string
 	updated  time.Time
 	err      string
 	printEnd time.Time
@@ -34,6 +36,18 @@ type Client struct {
 }
 
 func New() *Client { return &Client{snapshot: map[string]any{}} }
+
+// ConfigureLAN 配置局域网直连（打印机 IP + 屏幕上的局域网访问码）。
+// 设置了 lanHost 时 MQTT 走打印机本机 8883（用户 bblp），不再依赖拓竹云。
+func (c *Client) ConfigureLAN(lanHost, lanCode, sn string) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.lanHost = strings.TrimSpace(lanHost)
+	c.lanCode = strings.TrimSpace(lanCode)
+	if strings.TrimSpace(sn) != "" {
+		c.sn = strings.TrimSpace(sn)
+	}
+}
 
 func (c *Client) Configure(region, account, password, sn, token string) {
 	c.mu.Lock()
@@ -63,7 +77,7 @@ func (c *Client) Status() map[string]any {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	out := map[string]any{
-		"configured":     (c.token != "" || (c.account != "" && c.password != "")) && c.sn != "",
+		"configured":     (c.token != "" || (c.account != "" && c.password != "") || (c.lanHost != "" && c.lanCode != "")) && c.sn != "",
 		"connected":      c.mqtt != nil && c.mqtt.IsConnected(),
 		"updated_at":     "",
 		"error":          c.err,
@@ -71,6 +85,8 @@ func (c *Client) Status() map[string]any {
 		"print_ended_at": nil,
 		"need_code":      c.needCode,
 		"has_token":      c.token != "",
+		"lan":            c.lanHost != "",
+		"lan_host":       c.lanHost,
 		"mqtt_user":      redactUser(c.mqttUser),
 	}
 	if !c.updated.IsZero() {
@@ -150,7 +166,7 @@ func (c *Client) Reconnect() {
 		c.needCode = false
 		c.err = ""
 		c.mu.Unlock()
-		c.startMQTT(region, sn)
+		c.startMQTT()
 		return
 	}
 	if account == "" || password == "" {
@@ -170,7 +186,7 @@ func (c *Client) Reconnect() {
 		c.mu.Unlock()
 		return
 	}
-	c.startMQTT(region, sn)
+	c.startMQTT()
 }
 
 func (c *Client) SendCode() error {
@@ -227,7 +243,7 @@ func (c *Client) LoginWithCode(code string) error {
 	c.needCode = false
 	c.mu.Unlock()
 	if sn != "" {
-		c.startMQTT(region, sn)
+		c.startMQTT()
 	}
 	return nil
 }
@@ -250,7 +266,7 @@ func (c *Client) ApplyToken(token string) error {
 	c.err = ""
 	c.mu.Unlock()
 	if sn != "" {
-		c.startMQTT(region, sn)
+		c.startMQTT()
 	}
 	return nil
 }
@@ -303,8 +319,9 @@ func (c *Client) applyLoginJSON(raw []byte) error {
 	return nil
 }
 
-func (c *Client) startMQTT(region, sn string) {
+func (c *Client) startMQTT() {
 	c.mu.RLock()
+	region, sn, lanHost, lanCode := c.region, c.sn, c.lanHost, c.lanCode
 	token, user := c.token, c.mqttUser
 	c.mu.RUnlock()
 	if token == "" {
@@ -316,6 +333,11 @@ func (c *Client) startMQTT(region, sn string) {
 		c.mqttUser = user
 		c.mu.Unlock()
 	}
+	if lanHost != "" && lanCode != "" {
+		c.connectMQTT("ssl://"+lanHost+":8883", "bblp", lanCode,
+			&tls.Config{MinVersion: tls.VersionTLS12, InsecureSkipVerify: true}, sn)
+		return
+	}
 	if user == "" {
 		c.mu.Lock()
 		c.err = "无法从 token 解析 MQTT 用户名（需要 JWT 里的 username=u_数字）"
@@ -326,14 +348,19 @@ func (c *Client) startMQTT(region, sn string) {
 	if region != "" && region != "cn" {
 		host = "us.mqtt.bambulab.com:8883"
 	}
+	c.connectMQTT("ssl://"+host, user, token,
+		&tls.Config{MinVersion: tls.VersionTLS12}, sn)
+}
+
+func (c *Client) connectMQTT(broker, user, pass string, tlsCfg *tls.Config, sn string) {
 	opts := mqtt.NewClientOptions()
-	opts.AddBroker("ssl://" + host)
+	opts.AddBroker(broker)
 	opts.SetClientID(fmt.Sprintf("pandaspool-%d", time.Now().UnixNano()%1e12))
 	opts.SetUsername(user)
-	opts.SetPassword(token)
+	opts.SetPassword(pass)
 	opts.SetProtocolVersion(4) // MQTT 3.1.1
 	opts.SetCleanSession(true)
-	opts.SetTLSConfig(&tls.Config{MinVersion: tls.VersionTLS12})
+	opts.SetTLSConfig(tlsCfg)
 	opts.SetKeepAlive(30 * time.Second)
 	opts.SetAutoReconnect(true)
 	opts.SetConnectionLostHandler(func(_ mqtt.Client, err error) {
