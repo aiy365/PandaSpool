@@ -1556,6 +1556,7 @@ func (s *Server) static() http.HandlerFunc {
 func (s *Server) applyIntegrations() {
 	cfg := s.st.LoadSettings()
 	s.bambu.Configure(cfg.Bambu.Region, cfg.Bambu.Account, cfg.Bambu.Password, cfg.Bambu.PrinterSN, cfg.Bambu.AccessToken)
+	s.bambu.ConfigureLAN(cfg.Bambu.LanHost, cfg.Bambu.LanCode, cfg.Bambu.PrinterSN)
 	s.bambu.Reconnect()
 	s.ew.Configure(ewelink.Config{
 		Region:       cfg.EWeLink.Region,
