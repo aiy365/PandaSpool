@@ -2042,7 +2042,8 @@ async function viewMachine() {
   if (!$("#mach")) pageLoading("正在连接机台…");
   const ensureShell = () => {
     if ($("#mach")) return;
-    $("#page").innerHTML = `<div id="mach" class="mach-flex">
+    $("#page").innerHTML = `<div id="mach">
+      <div class="mach-flex">
       <!-- 右栏：竖屏视频监控（DOM 在前 = 手机端置顶；桌面端 order 靠右整栏） -->
       <aside class="mach-video-col">
           ${card(`
@@ -2054,20 +2055,6 @@ async function viewMachine() {
                 <button type="button" class="btn btn-xs btn-primary gap-1" id="ez-play">▶ 播放视频</button>
                 <button type="button" class="btn btn-xs btn-ghost border border-base-content/15 gap-1" id="ez-stop">■ 停止</button>
               </div>
-            </div>
-            <div id="a1cam-wrap">
-            <div class="flex items-center justify-between mt-1 mb-2">
-              <span class="text-xs font-semibold text-base-content/70">📷 A1 内置摄像头 (局域网)</span>
-              <span class="badge badge-xs badge-ghost" id="a1cam-st">快照 2s</span>
-            </div>
-            <div class="rounded-xl overflow-hidden border border-base-300/60 bg-base-300/30 min-h-[130px] flex items-center justify-center relative">
-              <img id="a1cam" class="w-full block" alt="A1 camera" style="display:none">
-              <div id="a1cam-ph" class="text-xs text-base-content/40 py-8">摄像头离线（局域网不可达或未配置）</div>
-            </div>
-            </div>
-            <div class="border-t border-base-300/40 my-3"></div>
-            <div class="flex items-center gap-2 mb-1">
-              <span class="text-xs text-base-content/50">☁️ 萤石云摄像头 (备用视角)</span>
             </div>
             <div id="ezviz" class="pp-video-stage border border-base-300/80 rounded-xl overflow-hidden shadow-inner flex flex-col items-center justify-center text-sm gap-2">
               <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-base-100/10 border border-white/10 text-slate-300 text-xs font-mono">
@@ -2149,7 +2136,22 @@ async function viewMachine() {
             </div>
           `)}
       </div>
-</div>`;
+      </div>
+
+      <!-- A1 内置摄像头：页面底部通栏（需局域网直连） -->
+      <div id="a1cam-wrap" class="card bg-base-100 shadow-sm border border-base-300/80 p-4 sm:p-6 mt-5" style="display:none">
+        <div class="flex items-center justify-between border-b border-base-300/60 pb-3 mb-3">
+          <h2 class="card-title text-base flex items-center gap-2">
+            <span>📷</span><span>A1 内置摄像头 (局域网)</span>
+          </h2>
+          <span class="badge badge-xs badge-ghost">快照 2s</span>
+        </div>
+        <div class="rounded-xl overflow-hidden border border-base-300/60 bg-base-300/30 relative">
+          <img id="a1cam" class="w-full block" alt="A1 camera" style="display:none">
+          <div id="a1cam-ph" class="text-xs text-base-content/40 py-10 text-center">摄像头离线（局域网不可达或未配置直连）</div>
+        </div>
+      </div>
+    </div>`;
 
     $("#mach").onchange = async (e) => {
       const t = e.target.closest("[data-t]");
@@ -2196,7 +2198,11 @@ async function viewMachine() {
     if (window.__a1camTimer) { clearInterval(window.__a1camTimer); window.__a1camTimer = null; }
     const camTick = async () => {
       const img = document.getElementById("a1cam");
-      if (!img) { if (window.__a1camTimer) { clearInterval(window.__a1camTimer); window.__a1camTimer = null; } return; }
+      const wrapEl = document.getElementById("a1cam-wrap");
+      if (!img || !img.isConnected || (wrapEl && wrapEl.style.display === "none")) {
+        if (window.__a1camTimer) { clearInterval(window.__a1camTimer); window.__a1camTimer = null; }
+        return;
+      }
       try {
         const r = await fetch("/api/camera/a1.jpeg?t=" + Date.now(), { credentials: "include" });
         if (!r.ok) throw new Error("http " + r.status);
@@ -2257,12 +2263,7 @@ async function viewMachine() {
       const padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
       const bT = parseFloat(cs.borderTopWidth) || 0, bB = parseFloat(cs.borderBottomWidth) || 0;
       const bL = parseFloat(cs.borderLeftWidth) || 0, bR = parseFloat(cs.borderRightWidth) || 0;
-      // 占位顶界：A1 段可见时从其下方开始，否则从卡头下方开始
-      const a1wrap = document.getElementById("a1cam-wrap");
-      const a1Visible = a1wrap && a1wrap.style.display !== "none" && a1wrap.offsetHeight > 0;
-      const topPx = a1Visible
-        ? (a1wrap.offsetTop + a1wrap.offsetHeight + 12)
-        : (header.offsetHeight + padT + bT);
+      const topPx = header.offsetHeight + padT + bT;
       const mainH = mainCol.getBoundingClientRect().height;
       const availH = Math.max(300, mainH - topPx - padB - bB);
       const availW = body.clientWidth - padL - padR - bL - bR;
