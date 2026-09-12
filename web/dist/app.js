@@ -2145,6 +2145,7 @@ async function viewMachine() {
             <span>📷</span><span>A1 内置摄像头 (局域网)</span>
           </h2>
           <span class="badge badge-xs badge-ghost">快照 2s</span>
+          <span class="badge badge-xs" id="a1cam-light">补光灯 --</span>
         </div>
         <div class="rounded-xl overflow-hidden border border-base-300/60 bg-base-300/30 relative">
           <img id="a1cam" class="w-full block" alt="A1 camera" style="display:none">
@@ -2194,6 +2195,20 @@ async function viewMachine() {
     // A1 内置摄像头段：仅在配置了局域网直连的环境显示
     const a1wrap = document.getElementById("a1cam-wrap");
     if (a1wrap) a1wrap.style.display = (d.bambu && d.bambu.lan) ? "" : "none";
+    const lightBadge = document.getElementById("a1cam-light");
+    if (lightBadge && d.bambu) {
+      const cl = d.bambu.chamber_light;
+      if (cl === undefined || cl === null) {
+        lightBadge.textContent = "补光灯 --";
+        lightBadge.className = "badge badge-xs badge-ghost";
+      } else if (cl) {
+        lightBadge.textContent = "补光灯 开";
+        lightBadge.className = "badge badge-xs badge-success";
+      } else {
+        lightBadge.textContent = "补光灯 关";
+        lightBadge.className = "badge badge-xs badge-ghost";
+      }
+    }
     // A1 内置摄像头快照轮询（页面离开后自动停止）
     if (window.__a1camTimer) { clearInterval(window.__a1camTimer); window.__a1camTimer = null; }
     const camTick = async () => {
