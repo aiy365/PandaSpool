@@ -1618,10 +1618,10 @@ body, .card, .topbar, .btn, .badge { transition: background-color 0.18s ease, bo
 .p-5 { padding: 1.25rem; }
 
 /* 机台页：视频独占右栏（DOM 在前=手机端置顶，桌面端 order 靠右整栏） */
-#mach.mach-flex { display: flex; flex-direction: column; gap: 1.25rem; align-items: stretch; }
+.mach-flex { display: flex; flex-direction: column; gap: 1.25rem; align-items: stretch; }
 #mach .mach-video-col { width: 100%; }
 @media (min-width: 1024px) {
-  #mach.mach-flex { flex-direction: row; }
+  .mach-flex { flex-direction: row; }
   /* 栏宽由 JS 按裁剪比例反解写入 --ez-col-w；占位用绝对定位纯像素摆放（避开
      flex 交叉轴 / aspect-ratio 在部分内核上的尺寸怪癖），底边与左栏齐平 */
   #mach .mach-video-col { order: 2; width: var(--ez-col-w, 400px); }
