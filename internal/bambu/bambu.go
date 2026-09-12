@@ -170,6 +170,13 @@ func (c *Client) Reconnect() {
 		return
 	}
 	if account == "" || password == "" {
+		// 无云端凭据时：配置了局域网直连则直接走打印机本机 MQTT
+		c.mu.RLock()
+		lanOk := c.lanHost != "" && c.lanCode != ""
+		c.mu.RUnlock()
+		if lanOk {
+			c.startMQTT()
+		}
 		return
 	}
 	need, err := c.loginPassword(region, account, password)
@@ -363,6 +370,8 @@ func (c *Client) connectMQTT(broker, user, pass string, tlsCfg *tls.Config, sn s
 	opts.SetTLSConfig(tlsCfg)
 	opts.SetKeepAlive(30 * time.Second)
 	opts.SetAutoReconnect(true)
+	opts.SetConnectRetry(true)
+	opts.SetConnectRetryInterval(5 * time.Second)
 	opts.SetConnectionLostHandler(func(_ mqtt.Client, err error) {
 		c.mu.Lock()
 		c.err = "mqtt: " + err.Error()
@@ -444,6 +453,35 @@ func (c *Client) applyPrint(print map[string]any) {
 		merge("ams", ams)
 		if tn := first(ams, "tray_now"); tn != nil {
 			merge("tray_now", tn)
+		}
+	}
+	// 灯光状态（chamber_light = 仓内补光灯，work_light = 外部工作灯）
+	// A1 系列上报 lights_report + mode:"on"/"off"；X/P 系列上报 lights + on:bool
+	for _, key := range []string{"lights", "lights_report"} {
+		lights, ok := print[key].([]any)
+		if !ok {
+			continue
+		}
+		for _, li := range lights {
+			lm, ok := li.(map[string]any)
+			if !ok {
+				continue
+			}
+			node, _ := lm["node"].(string)
+			on := false
+			if b, ok := lm["on"].(bool); ok {
+				on = b
+			} else if m, ok := lm["mode"].(string); ok {
+				on = m == "on"
+			} else {
+				continue
+			}
+			switch node {
+			case "chamber_light":
+				merge("chamber_light", on)
+			case "work_light":
+				merge("work_light", on)
+			}
 		}
 	}
 	if tn := first(print, "tray_now", "ams_tray_now"); tn != nil {
