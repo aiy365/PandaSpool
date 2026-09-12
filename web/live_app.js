@@ -2055,6 +2055,20 @@ async function viewMachine() {
                 <button type="button" class="btn btn-xs btn-ghost border border-base-content/15 gap-1" id="ez-stop">■ 停止</button>
               </div>
             </div>
+            <div id="a1cam-wrap">
+            <div class="flex items-center justify-between mt-1 mb-2">
+              <span class="text-xs font-semibold text-base-content/70">📷 A1 内置摄像头 (局域网)</span>
+              <span class="badge badge-xs badge-ghost" id="a1cam-st">快照 2s</span>
+            </div>
+            <div class="rounded-xl overflow-hidden border border-base-300/60 bg-base-300/30 min-h-[130px] flex items-center justify-center relative">
+              <img id="a1cam" class="w-full block" alt="A1 camera" style="display:none">
+              <div id="a1cam-ph" class="text-xs text-base-content/40 py-8">摄像头离线（局域网不可达或未配置）</div>
+            </div>
+            </div>
+            <div class="border-t border-base-300/40 my-3"></div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xs text-base-content/50">☁️ 萤石云摄像头 (备用视角)</span>
+            </div>
             <div id="ezviz" class="pp-video-stage border border-base-300/80 rounded-xl overflow-hidden shadow-inner flex flex-col items-center justify-center text-sm gap-2">
               <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-base-100/10 border border-white/10 text-slate-300 text-xs font-mono">
                 <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
@@ -2175,6 +2189,51 @@ async function viewMachine() {
     }
 
     const printing = !!d.printing;
+    // A1 内置摄像头段：仅在配置了局域网直连的环境显示
+    const a1wrap = document.getElementById("a1cam-wrap");
+    if (a1wrap) a1wrap.style.display = (d.bambu && d.bambu.lan) ? "" : "none";
+    // A1 内置摄像头快照轮询（页面离开后自动停止）
+    if (window.__a1camTimer) { clearInterval(window.__a1camTimer); window.__a1camTimer = null; }
+    const camTick = async () => {
+      const img = document.getElementById("a1cam");
+      if (!img) { if (window.__a1camTimer) { clearInterval(window.__a1camTimer); window.__a1camTimer = null; } return; }
+      try {
+        const r = await fetch("/api/camera/a1.jpeg?t=" + Date.now(), { credentials: "include" });
+        if (!r.ok) throw new Error("http " + r.status);
+        const blob = await r.blob();
+        if (img.__lastURL) URL.revokeObjectURL(img.__lastURL);
+        img.__lastURL = URL.createObjectURL(blob);
+        img.src = img.__lastURL;
+        camOk();
+      } catch (e) {
+        camFail();
+      }
+    };
+    const camFail = () => {
+      const img = document.getElementById("a1cam");
+      const ph = document.getElementById("a1cam-ph");
+      window.__a1camFails = (window.__a1camFails || 0) + 1;
+      if (img) img.style.display = "none";
+      if (ph) ph.style.display = "flex";
+    };
+    const camOk = () => {
+      window.__a1camFails = 0;
+      const img = document.getElementById("a1cam");
+      const ph = document.getElementById("a1cam-ph");
+      if (img) img.style.display = "block";
+      if (ph) ph.style.display = "none";
+    };
+    if (document.getElementById("a1cam")) {
+      const img0 = document.getElementById("a1cam");
+      img0.onload = camOk;
+      img0.onerror = camFail;
+      window.__a1camFails = 0;
+      camTick();
+      window.__a1camTimer = setInterval(() => {
+        if (window.__a1camFails >= 4) { camFail(); return; }
+        camTick();
+      }, 2500);
+    }
     // 竖屏监控：右栏占位底边与左栏齐平——按左栏高度反解视频尺寸，宽度上限
     // 不超过行宽 55%。占位绝对定位 + 纯像素摆放（部分内核上 flex 交叉轴与
     // aspect-ratio 组合会把 width 钳回拉伸宽，这里完全绕开）。
@@ -2198,19 +2257,22 @@ async function viewMachine() {
       const padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
       const bT = parseFloat(cs.borderTopWidth) || 0, bB = parseFloat(cs.borderBottomWidth) || 0;
       const bL = parseFloat(cs.borderLeftWidth) || 0, bR = parseFloat(cs.borderRightWidth) || 0;
-      const headerH = header.offsetHeight;
-      const availH = Math.max(420, mainCol.getBoundingClientRect().height - headerH - padT - padB - bT - bB);
+      // 占位顶界：A1 段可见时从其下方开始，否则从卡头下方开始
+      const a1wrap = document.getElementById("a1cam-wrap");
+      const a1Visible = a1wrap && a1wrap.style.display !== "none" && a1wrap.offsetHeight > 0;
+      const topPx = a1Visible
+        ? (a1wrap.offsetTop + a1wrap.offsetHeight + 12)
+        : (header.offsetHeight + padT + bT);
+      const mainH = mainCol.getBoundingClientRect().height;
+      const availH = Math.max(300, mainH - topPx - padB - bB);
       const availW = body.clientWidth - padL - padR - bL - bR;
       const maxW = Math.min(900, window.innerWidth * 0.55);
       let vh = availH, vw = vh * a;
       if (vw > maxW) { vw = maxW; vh = vw / a; }
-      // 再小一点点 + 底部留出与栏间距一致的呼吸边
-      vh = Math.round(vh * 0.92);
-      vw = Math.round(vh * a);
       mach.style.setProperty("--ez-col-w", Math.round(vw + padL + padR + bL + bR) + "px");
       ezStage.style.position = "absolute";
       ezStage.style.left = Math.round(padL + bL + Math.max(0, (availW - vw) / 2)) + "px";
-      ezStage.style.top = Math.round(headerH + padT + bT + Math.max(0, (availH - vh) / 2)) + "px";
+      ezStage.style.top = Math.round(topPx + Math.max(0, (availH - vh) / 2)) + "px";
       ezStage.style.width = Math.round(vw) + "px";
       ezStage.style.height = Math.round(vh) + "px";
       ezStage.style.aspectRatio = "auto";
