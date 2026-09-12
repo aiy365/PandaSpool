@@ -34,6 +34,9 @@ PandaSpool 面向 3D 打印农场和硬核玩家，解决几件拓竹生态里�
 
 ## 功能一览
 
+- **拓竹局域网直连**：填打印机内网 IP + 屏幕上的访问码，MQTT 直连打印机本机 8883——实时数据与控制不依赖拓竹云；与云端账号可并存，云端掉线本地照常
+- **A1 内置摄像头**：局域网直连环境下，机台页实时快照（chamber-image 协议，1536×1080），无需萤石
+- **补光灯状态**：机台页读取并显示仓内补光灯开/关（兼容 A1 系 `lights_report` 与 X/P 系 `lights` 两种上报格式）
 - **机台监控**：喷嘴/热床温度、进度、层号、剩余时间、速度档、AMS 装载；自动识别外部料架的闲置占位报文，不误报耗材
 - **物理料盘**：快捷入库分配短编号 → 拓竹云端建档 → 记号笔写盘；称重同步、开封/用完状态流转、报废联动云端删除
 - **耗材档案**：品牌/系列/材质、色卡与在架库存、烘干/喷嘴/热床参数多来源并存、冲突提示、横评对比
@@ -75,10 +78,12 @@ go build -o pandaspool ./cmd/pandaspool
 | 模块 | 填什么 | 备注 |
 |---|---|---|
 | 拓竹云 | 地区 + 打印机 SN + 账号 | 国内通常需要验证码登录，登录一次后记住 Token；也可直接粘贴 accessToken |
+| 拓竹局域网直连 | 打印机内网 IP + 屏幕上的访问码 | 中枢与打印机同网段（或经 WireGuard/frp 隧道）时填写；填了 MQTT 直连打印机 8883，不依赖拓竹云 |
 | 易微联 | App 同一套账号 | 登录后点选绑定各路继电器，三联会拆成三路；密码登录报 407 时改用网页版 Token |
 | 萤石 | AppKey/Secret + 设备序列号 | 验证码在设备底部标签；画面支持旋转与上下左右裁切 |
 | 企业微信 | 企业ID + 应用Secret + AgentID + AESKey | 按"接收消息"URL 校验流程配置，用于图片推送 |
 | 空气探头 | 复制空气令牌到 ESP32 固件 | `POST /api/ingest/air`，格式见 [`firmware/air-post.example.json`](firmware/air-post.example.json) |
+| 桌面端令牌 | 生成后填入 DeskBadges 等桌面客户端 | 与空气令牌相互独立，支持一键生成；`GET /api/desk` 同时接受 AI 令牌与桌面端令牌 |
 
 ## 仓库结构
 
@@ -107,7 +112,8 @@ go build -o pandaspool ./cmd/pandaspool
 | `GET /api/ai/materials` | AI 令牌 (Bearer) | 全量耗材档案（只读） |
 | `POST /api/ai/drafts` | AI 令牌 (Bearer) | 提交参数草稿（仅草稿，待人工确认） |
 | `GET /llms.txt` | AI 令牌 (Bearer) | 给 AI 看的自述文档 |
-| `GET /api/desk` | AI 令牌 (Bearer) | 桌面托盘轮询的机台摘要 |
+| `GET /api/desk` | AI 令牌 / 桌面端令牌 (Bearer) | 桌面托盘轮询的机台摘要 |
+| `GET /api/camera/a1.jpeg` | 会话 Cookie | A1 内置摄像头快照（需局域网直连） |
 | 其余 `/api/*` | 会话 Cookie | 页面功能 |
 
 ---
@@ -122,6 +128,8 @@ go build -o pandaspool ./cmd/pandaspool
 
 - **Spool management**: intake generates short codes (e.g. `pm001`), registers a custom filament on Bambu Cloud with the code in its note, and syncs remaining weight after you weigh the spool.
 - **Printer monitoring**: local MQTT telemetry (temps, progress, layers, AMS loadout), with sane handling of the idle-state `tray_now=254` placeholder quirk.
+- **LAN direct-connect**: point the hub at the printer's LAN IP + access code and MQTT streams straight from the printer — no Bambu cloud dependency.
+- **A1 built-in camera**: on-network snapshots (1536x1080) of the chamber camera via the chamber-image protocol, plus chamber-light state reporting.
 - **Environment automation**: exhaust/purifier auto-on while printing, delayed auto-off, fill light, presence sensing via eWeLink relays.
 - **Filament archive**: products, colors, stock ledger, purchase cost averaging, multi-source parameter claims with conflict detection and comparison views.
 - **AI-friendly**: read-only material pack + draft-only write API (`/llms.txt` documents it), so agents can help without touching inventory.
