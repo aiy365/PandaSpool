@@ -18,7 +18,7 @@ import (
 // 打印异常监控：每 20 分钟抓一张萤石快照，与上一张对比后交给视觉模型
 // （设置页「AI 视觉识别配置」的 Endpoint/Key/Model，OpenAI 兼容格式，
 // 如 DeepSeek deepseek-flash——图像理解走 image_url / base64 data URL），
-// 判断是否出现打印异常；异常时推企业微信。打印机空闲时只刷新基线。
+// 判断是否出现打印异常；异常时推企业微信（含抓拍图）。打印机空闲时只刷新基线。
 
 const monitorInterval = 20 * time.Minute
 
@@ -58,14 +58,19 @@ func (s *Server) monitorSetSnapshot(jpeg []byte) {
 }
 
 // monitorTick 执行一次监控周期：抓拍 -> 与上一张对比（打印中才调用视觉）->
-// 异常推企业微信。空闲时只刷新基线，不消耗视觉 API。
+// 异常推企业微信（附抓拍图）。空闲时只刷新基线，不消耗视觉 API。
 func (s *Server) monitorTick() {
+	// 只在打印中生效：非打印时间不抓拍、不调用、不产生任何请求
+	if !s.bambu.HasPrintState() {
+		return
+	}
+
 	s.monitorMu.Lock()
 	prev := s.monitorPrev
-	hasPrev := len(prev) > 0
+	prevAge := time.Since(s.monitorPrevAt)
 	s.monitorMu.Unlock()
 
-	cur, err := s.ezvizCaptureJPEG()
+	cur, curURL, err := s.ezvizCaptureJPEG()
 	if err != nil {
 		s.monitorSetResult(&monitorResult{At: time.Now(), Skipped: "抓拍失败: " + err.Error()})
 		log.Printf("[monitor] 抓拍失败: %v", err)
@@ -73,13 +78,9 @@ func (s *Server) monitorTick() {
 	}
 	s.monitorSetSnapshot(cur)
 
-	if !hasPrev || len(prev) == 0 {
-		log.Printf("[monitor] 已建立基线快照 %dB", len(cur))
+	if len(prev) == 0 || prevAge > 40*time.Minute {
+		log.Printf("[monitor] 已建立/刷新基线快照 %dB（基线年龄 %s）", len(cur), prevAge.Round(time.Second))
 		s.monitorSetResult(&monitorResult{At: time.Now(), Desc: "已建立基线快照", Skipped: "baseline"})
-		return
-	}
-	if !s.bambu.HasPrintState() {
-		s.monitorSetResult(&monitorResult{At: time.Now(), Desc: "打印机空闲，跳过对比", Skipped: "idle"})
 		return
 	}
 
@@ -94,8 +95,9 @@ func (s *Server) monitorTick() {
 	if anomaly {
 		cfg := s.st.LoadSettings()
 		title := "⚠️ 打印异常监控告警（" + level + "）"
+		pushDesc := desc + "\n\n（A1 摄像头 20 分钟对比监控）"
 		go func() {
-			if perr := s.weComTextPush(&cfg, title, desc+"\n\n（A1 摄像头 20 分钟对比监控）"); perr != nil {
+			if perr := s.weComNewsPush(&cfg, title, pushDesc, curURL); perr != nil {
 				log.Printf("[monitor] WeCom 告警推送失败: %v", perr)
 			}
 		}()
@@ -133,7 +135,7 @@ func (s *Server) monitorTestHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	cur, err := s.ezvizCaptureJPEG()
+	cur, _, err := s.ezvizCaptureJPEG()
 	if err != nil {
 		json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "capture_failed", "hint": err.Error()})
 		return
@@ -170,16 +172,79 @@ func (s *Server) monitorTestHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ezvizCaptureJPEG 通过萤石开放平台抓一张快照并下载图片本体（带重试）。
-func (s *Server) ezvizCaptureJPEG() ([]byte, error) {
+// weComNewsPush 发企业微信通知：带 picUrl 时用 news 卡片（含配图），否则退回 textcard。
+func (s *Server) weComNewsPush(cfg *store.Settings, title, desc, picUrl string) error {
+	token, err := s.weComAccessToken(*cfg)
+	if err != nil {
+		return err
+	}
+	agentId := 1
+	fmt.Sscanf(cfg.Automations.WeComAgentID, "%d", &agentId)
+	toUser := "@all"
+	if cfg.Automations.WeComToUser != "" {
+		toUser = cfg.Automations.WeComToUser
+	}
+	var payload map[string]any
+	if picUrl != "" {
+		payload = map[string]any{
+			"touser":  toUser,
+			"msgtype": "news",
+			"agentid": agentId,
+			"news": map[string]any{
+				"articles": []map[string]any{
+					{
+						"title":       title,
+						"description": desc,
+						"url":         "https://3d.bstccc.cn/#/machine",
+						"picurl":      picUrl,
+					},
+				},
+			},
+		}
+	} else {
+		payload = map[string]any{
+			"touser":  toUser,
+			"msgtype": "textcard",
+			"agentid": agentId,
+			"textcard": map[string]any{
+				"title":       title,
+				"description": desc,
+				"url":         "https://3d.bstccc.cn/#/machine",
+				"btntxt":      "查看详情",
+			},
+		}
+	}
+	b, _ := json.Marshal(payload)
+	req, _ := http.NewRequest("POST", "https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token="+token, bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	rb, _ := io.ReadAll(resp.Body)
+	var sent struct {
+		ErrCode int    `json:"errcode"`
+		ErrMsg  string `json:"errmsg"`
+	}
+	_ = json.Unmarshal(rb, &sent)
+	if sent.ErrCode != 0 {
+		return fmt.Errorf("WeCom 拒绝(%d): %s", sent.ErrCode, sent.ErrMsg)
+	}
+	return nil
+}
+
+// ezvizCaptureJPEG 通过萤石开放平台抓一张快照：返回图片本体与签名 OSS URL
+// （URL 可直接作为企业微信 news 消息的配图）。
+func (s *Server) ezvizCaptureJPEG() ([]byte, string, error) {
 	cfg := s.st.LoadSettings()
 	if cfg.Ezviz.AppKey == "" || cfg.Ezviz.DeviceSerial == "" {
-		return nil, fmt.Errorf("萤石未配置")
+		return nil, "", fmt.Errorf("萤石未配置")
 	}
 	s.ez.Configure(cfg.Ezviz.AppKey, cfg.Ezviz.AppSecret)
 	token, err := s.ez.AccessToken()
 	if err != nil {
-		return nil, fmt.Errorf("萤石 token: %w", err)
+		return nil, "", fmt.Errorf("萤石 token: %w", err)
 	}
 	channel := cfg.Ezviz.Channel
 	if channel == "" {
@@ -191,7 +256,7 @@ func (s *Server) ezvizCaptureJPEG() ([]byte, error) {
 	form.Set("channelNo", channel)
 	res, err := http.PostForm("https://open.ys7.com/api/lapp/device/capture", form)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	defer res.Body.Close()
 	raw, _ := io.ReadAll(res.Body)
@@ -203,13 +268,13 @@ func (s *Server) ezvizCaptureJPEG() ([]byte, error) {
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &parsed); err != nil {
-		return nil, fmt.Errorf("萤石响应解析失败: %w", err)
+		return nil, "", fmt.Errorf("萤石响应解析失败: %w", err)
 	}
 	if parsed.Code != "200" && parsed.Code != "20006" && parsed.Code != "0" {
-		return nil, fmt.Errorf("萤石抓拍失败(%s): %s", parsed.Code, parsed.Msg)
+		return nil, "", fmt.Errorf("萤石抓拍失败(%s): %s", parsed.Code, parsed.Msg)
 	}
 	if parsed.Data.PicUrl == "" {
-		return nil, fmt.Errorf("萤石未返回抓拍地址")
+		return nil, "", fmt.Errorf("萤石未返回抓拍地址")
 	}
 	for attempt := 0; attempt < 2; attempt++ {
 		client := &http.Client{Timeout: 20 * time.Second}
@@ -218,12 +283,12 @@ func (s *Server) ezvizCaptureJPEG() ([]byte, error) {
 			jpeg, rerr := io.ReadAll(resp.Body)
 			resp.Body.Close()
 			if rerr == nil && len(jpeg) > 1024 && jpeg[0] == 0xFF && jpeg[1] == 0xD8 {
-				return jpeg, nil
+				return jpeg, parsed.Data.PicUrl, nil
 			}
 		}
 		time.Sleep(time.Second)
 	}
-	return nil, fmt.Errorf("抓拍图片下载失败")
+	return nil, "", fmt.Errorf("抓拍图片下载失败")
 }
 
 // visionCompareMonitor 把两张快照发给视觉模型（DeepSeek OpenAI 兼容格式，
@@ -314,47 +379,4 @@ func (s *Server) visionCompareMonitor(prevJPEG, curJPEG []byte) (anomaly bool, l
 		return false, "none", raw, raw, nil
 	}
 	return res.Anomaly, res.Level, res.Desc, raw, nil
-}
-
-// weComTextPush 发一条企业微信文本卡片（监控告警用）。
-func (s *Server) weComTextPush(cfg *store.Settings, title, desc string) error {
-	token, err := s.weComAccessToken(*cfg)
-	if err != nil {
-		return err
-	}
-	agentId := 1
-	fmt.Sscanf(cfg.Automations.WeComAgentID, "%d", &agentId)
-	toUser := "@all"
-	if cfg.Automations.WeComToUser != "" {
-		toUser = cfg.Automations.WeComToUser
-	}
-	payload := map[string]any{
-		"touser":  toUser,
-		"msgtype": "textcard",
-		"agentid": agentId,
-		"textcard": map[string]any{
-			"title":       title,
-			"description": desc,
-			"url":         "https://3d.bstccc.cn/#/machine",
-			"btntxt":      "查看详情",
-		},
-	}
-	b, _ := json.Marshal(payload)
-	req, _ := http.NewRequest("POST", "https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token="+token, bytes.NewReader(b))
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	rb, _ := io.ReadAll(resp.Body)
-	var sent struct {
-		ErrCode int    `json:"errcode"`
-		ErrMsg  string `json:"errmsg"`
-	}
-	_ = json.Unmarshal(rb, &sent)
-	if sent.ErrCode != 0 {
-		return fmt.Errorf("WeCom 拒绝(%d): %s", sent.ErrCode, sent.ErrMsg)
-	}
-	return nil
 }
