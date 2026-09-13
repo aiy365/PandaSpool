@@ -1,0 +1,360 @@
+package server
+
+import (
+	"bytes"
+	"encoding/base64"
+	"encoding/json"
+	"fmt"
+	"io"
+	"log"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"pandaspool/internal/store"
+)
+
+// 打印异常监控：每 20 分钟抓一张萤石快照，与上一张对比后交给视觉模型
+// （设置页「AI 视觉识别配置」的 Endpoint/Key/Model，OpenAI 兼容格式，
+// 如 DeepSeek deepseek-flash——图像理解走 image_url / base64 data URL），
+// 判断是否出现打印异常；异常时推企业微信。打印机空闲时只刷新基线。
+
+const monitorInterval = 20 * time.Minute
+
+type monitorResult struct {
+	At      time.Time `json:"at"`
+	Anomaly bool      `json:"anomaly"`
+	Level   string    `json:"level"`
+	Desc    string    `json:"desc"`
+	Skipped string    `json:"skipped,omitempty"`
+	Raw     string    `json:"raw,omitempty"`
+}
+
+const monitorPrompt = `你是 3D 打印机的监控助手。下面是同一个监控摄像头在约 20 分钟间隔拍摄的两张快照（第一张较早，第二张较晚），打印机为拓竹 A1，当前可能有打印任务进行中。
+请对比两张图片，判断打印过程是否出现明显异常，例如：
+- 乱丝/拉丝大量堆积（spaghetti）
+- 模型从热床脱落或掀边严重
+- 打印件悬空失败、层间明显错位
+- 烟雾或明火迹象
+- 打印机被移动、摄像头被遮挡或转向
+- 热床上的纸片、工具等异物被撞飞
+注意：正常的打印进程、耗材消耗、喷嘴位置变化、灯光或画质（夜视/彩色）差异都不算异常。
+严格输出且仅输出一个合法 JSON 对象，不要包含 markdown 标记，格式如下：
+{"anomaly": false, "level": "none", "desc": "一句简短中文描述"}
+anomaly 为 true 时 level 用 warn 或 critical，desc 写明异常类型与位置；无异常时 level 用 none。`
+
+func (s *Server) monitorSetResult(r *monitorResult) {
+	s.monitorMu.Lock()
+	s.monitorLast = r
+	s.monitorMu.Unlock()
+}
+
+func (s *Server) monitorSetSnapshot(jpeg []byte) {
+	s.monitorMu.Lock()
+	s.monitorPrev = jpeg
+	s.monitorPrevAt = time.Now()
+	s.monitorMu.Unlock()
+}
+
+// monitorTick 执行一次监控周期：抓拍 -> 与上一张对比（打印中才调用视觉）->
+// 异常推企业微信。空闲时只刷新基线，不消耗视觉 API。
+func (s *Server) monitorTick() {
+	s.monitorMu.Lock()
+	prev := s.monitorPrev
+	hasPrev := len(prev) > 0
+	s.monitorMu.Unlock()
+
+	cur, err := s.ezvizCaptureJPEG()
+	if err != nil {
+		s.monitorSetResult(&monitorResult{At: time.Now(), Skipped: "抓拍失败: " + err.Error()})
+		log.Printf("[monitor] 抓拍失败: %v", err)
+		return
+	}
+	s.monitorSetSnapshot(cur)
+
+	if !hasPrev || len(prev) == 0 {
+		log.Printf("[monitor] 已建立基线快照 %dB", len(cur))
+		s.monitorSetResult(&monitorResult{At: time.Now(), Desc: "已建立基线快照", Skipped: "baseline"})
+		return
+	}
+	if !s.bambu.HasPrintState() {
+		s.monitorSetResult(&monitorResult{At: time.Now(), Desc: "打印机空闲，跳过对比", Skipped: "idle"})
+		return
+	}
+
+	anomaly, level, desc, raw, err := s.visionCompareMonitor(prev, cur)
+	if err != nil {
+		s.monitorSetResult(&monitorResult{At: time.Now(), Skipped: "视觉调用失败: " + err.Error()})
+		log.Printf("[monitor] 视觉调用失败: %v", err)
+		return
+	}
+	s.monitorSetResult(&monitorResult{At: time.Now(), Anomaly: anomaly, Level: level, Desc: desc, Raw: raw})
+	log.Printf("[monitor] 对比完成: anomaly=%v level=%s desc=%s", anomaly, level, desc)
+	if anomaly {
+		cfg := s.st.LoadSettings()
+		title := "⚠️ 打印异常监控告警（" + level + "）"
+		go func() {
+			if perr := s.weComTextPush(&cfg, title, desc+"\n\n（A1 摄像头 20 分钟对比监控）"); perr != nil {
+				log.Printf("[monitor] WeCom 告警推送失败: %v", perr)
+			}
+		}()
+	}
+}
+
+// printMonitorLoop 每 20 分钟一个监控周期；启动后先等 90 秒（等网络与
+// 萤石凭证就绪），首轮只建基线。
+func (s *Server) printMonitorLoop() {
+	time.Sleep(90 * time.Second)
+	s.monitorTick()
+	for {
+		time.Sleep(monitorInterval)
+		s.monitorTick()
+	}
+}
+
+// monitorLastHandler GET /api/monitor/last — 最近一次监控结果。
+func (s *Server) monitorLastHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	s.monitorMu.Lock()
+	last := s.monitorLast
+	s.monitorMu.Unlock()
+	if last == nil {
+		w.Write([]byte(`{"ok":false,"hint":"监控尚未运行"}`))
+		return
+	}
+	json.NewEncoder(w).Encode(map[string]any{"ok": true, "result": last})
+}
+
+// monitorTestHandler POST /api/monitor/test — 立即抓拍并走一次视觉对比
+// （设置页测试按钮；首轮只建基线并提示再点一次）。
+func (s *Server) monitorTestHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	cur, err := s.ezvizCaptureJPEG()
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "capture_failed", "hint": err.Error()})
+		return
+	}
+	s.monitorMu.Lock()
+	prev := s.monitorPrev
+	s.monitorMu.Unlock()
+	if len(prev) == 0 {
+		s.monitorMu.Lock()
+		s.monitorPrev = cur
+		s.monitorPrevAt = time.Now()
+		s.monitorMu.Unlock()
+		json.NewEncoder(w).Encode(map[string]any{
+			"ok":    false,
+			"error": "baseline",
+			"hint":  "已抓拍基线快照；再次点击即进行两图对比识别",
+		})
+		return
+	}
+	anomaly, level, desc, raw, err := s.visionCompareMonitor(prev, cur)
+	if err != nil {
+		json.NewEncoder(w).Encode(map[string]any{"ok": false, "error": "ai_call_failed", "hint": err.Error()})
+		return
+	}
+	s.monitorMu.Lock()
+	s.monitorPrev = cur
+	s.monitorLast = &monitorResult{At: time.Now(), Anomaly: anomaly, Level: level, Desc: desc, Raw: raw}
+	s.monitorMu.Unlock()
+	json.NewEncoder(w).Encode(map[string]any{
+		"ok":      true,
+		"anomaly": anomaly,
+		"level":   level,
+		"desc":    desc,
+	})
+}
+
+// ezvizCaptureJPEG 通过萤石开放平台抓一张快照并下载图片本体（带重试）。
+func (s *Server) ezvizCaptureJPEG() ([]byte, error) {
+	cfg := s.st.LoadSettings()
+	if cfg.Ezviz.AppKey == "" || cfg.Ezviz.DeviceSerial == "" {
+		return nil, fmt.Errorf("萤石未配置")
+	}
+	s.ez.Configure(cfg.Ezviz.AppKey, cfg.Ezviz.AppSecret)
+	token, err := s.ez.AccessToken()
+	if err != nil {
+		return nil, fmt.Errorf("萤石 token: %w", err)
+	}
+	channel := cfg.Ezviz.Channel
+	if channel == "" {
+		channel = "1"
+	}
+	form := url.Values{}
+	form.Set("accessToken", token)
+	form.Set("deviceSerial", cfg.Ezviz.DeviceSerial)
+	form.Set("channelNo", channel)
+	res, err := http.PostForm("https://open.ys7.com/api/lapp/device/capture", form)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+	raw, _ := io.ReadAll(res.Body)
+	var parsed struct {
+		Code string `json:"code"`
+		Msg  string `json:"msg"`
+		Data struct {
+			PicUrl string `json:"picUrl"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(raw, &parsed); err != nil {
+		return nil, fmt.Errorf("萤石响应解析失败: %w", err)
+	}
+	if parsed.Code != "200" && parsed.Code != "20006" && parsed.Code != "0" {
+		return nil, fmt.Errorf("萤石抓拍失败(%s): %s", parsed.Code, parsed.Msg)
+	}
+	if parsed.Data.PicUrl == "" {
+		return nil, fmt.Errorf("萤石未返回抓拍地址")
+	}
+	for attempt := 0; attempt < 2; attempt++ {
+		client := &http.Client{Timeout: 20 * time.Second}
+		resp, gerr := client.Get(parsed.Data.PicUrl)
+		if gerr == nil {
+			jpeg, rerr := io.ReadAll(resp.Body)
+			resp.Body.Close()
+			if rerr == nil && len(jpeg) > 1024 && jpeg[0] == 0xFF && jpeg[1] == 0xD8 {
+				return jpeg, nil
+			}
+		}
+		time.Sleep(time.Second)
+	}
+	return nil, fmt.Errorf("抓拍图片下载失败")
+}
+
+// visionCompareMonitor 把两张快照发给视觉模型（DeepSeek OpenAI 兼容格式，
+// image_url 传 base64 data URL）对比判断。返回 anomaly/level/desc 与原文。
+func (s *Server) visionCompareMonitor(prevJPEG, curJPEG []byte) (anomaly bool, level, desc, raw string, err error) {
+	cfg := s.st.LoadSettings()
+	if cfg.AI.APIKey == "" {
+		return false, "", "", "", fmt.Errorf("未配置 Vision API Key（设置页 AI 视觉识别）")
+	}
+	endpoint := strings.TrimSpace(cfg.AI.Endpoint)
+	if endpoint == "" {
+		// 未填 Endpoint 时按 DeepSeek 官方 BASE URL 处理
+		endpoint = "https://api.deepseek.com"
+	}
+	model := strings.TrimSpace(cfg.AI.Model)
+	if model == "" {
+		model = "deepseek-flash"
+	}
+
+	b64Prev := base64.StdEncoding.EncodeToString(prevJPEG)
+	b64Cur := base64.StdEncoding.EncodeToString(curJPEG)
+
+	payload := map[string]any{
+		"model": model,
+		"messages": []any{
+			map[string]any{"role": "system", "content": monitorPrompt},
+			map[string]any{
+				"role": "user",
+				"content": []any{
+					map[string]any{"type": "text", "text": "第一张（较早）："},
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:image/jpeg;base64," + b64Prev}},
+					map[string]any{"type": "text", "text": "第二张（较晚）："},
+					map[string]any{"type": "image_url", "image_url": map[string]any{"url": "data:image/jpeg;base64," + b64Cur}},
+					map[string]any{"type": "text", "text": "请对比并输出 JSON 结论。"},
+				},
+			},
+		},
+		"temperature": 0.1,
+		"stream":      false,
+	}
+	reqBody, _ := json.Marshal(payload)
+
+	reqURL := strings.TrimRight(endpoint, "/") + "/chat/completions"
+	httpReq, err := http.NewRequest(http.MethodPost, reqURL, bytes.NewReader(reqBody))
+	if err != nil {
+		return false, "", "", "", err
+	}
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("Authorization", "Bearer "+cfg.AI.APIKey)
+
+	client := &http.Client{Timeout: 150 * time.Second}
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return false, "", "", "", err
+	}
+	defer resp.Body.Close()
+	respBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false, "", "", "", err
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return false, "", "", "", fmt.Errorf("视觉 API HTTP %d: %s", resp.StatusCode, string(respBytes))
+	}
+
+	var openaiResp struct {
+		Choices []struct {
+			Message struct {
+				Content string `json:"content"`
+			} `json:"message"`
+		} `json:"choices"`
+	}
+	if err := json.Unmarshal(respBytes, &openaiResp); err != nil || len(openaiResp.Choices) == 0 {
+		return false, "", "", "", fmt.Errorf("视觉 API 响应解析失败: %s", string(respBytes[:min(200, len(respBytes))]))
+	}
+	raw = strings.TrimSpace(openaiResp.Choices[0].Message.Content)
+	raw = strings.TrimPrefix(raw, "```json")
+	raw = strings.TrimPrefix(raw, "```")
+	raw = strings.TrimSuffix(raw, "```")
+	raw = strings.TrimSpace(raw)
+
+	var res struct {
+		Anomaly bool   `json:"anomaly"`
+		Level   string `json:"level"`
+		Desc    string `json:"desc"`
+	}
+	if err := json.Unmarshal([]byte(raw), &res); err != nil {
+		// 模型未按 JSON 返回时，把原文当作描述（不误报异常）
+		return false, "none", raw, raw, nil
+	}
+	return res.Anomaly, res.Level, res.Desc, raw, nil
+}
+
+// weComTextPush 发一条企业微信文本卡片（监控告警用）。
+func (s *Server) weComTextPush(cfg *store.Settings, title, desc string) error {
+	token, err := s.weComAccessToken(*cfg)
+	if err != nil {
+		return err
+	}
+	agentId := 1
+	fmt.Sscanf(cfg.Automations.WeComAgentID, "%d", &agentId)
+	toUser := "@all"
+	if cfg.Automations.WeComToUser != "" {
+		toUser = cfg.Automations.WeComToUser
+	}
+	payload := map[string]any{
+		"touser":  toUser,
+		"msgtype": "textcard",
+		"agentid": agentId,
+		"textcard": map[string]any{
+			"title":       title,
+			"description": desc,
+			"url":         "https://3d.bstccc.cn/#/machine",
+			"btntxt":      "查看详情",
+		},
+	}
+	b, _ := json.Marshal(payload)
+	req, _ := http.NewRequest("POST", "https://qyapi.weixin.qq.com/cgi-bin/message/send?access_token="+token, bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	rb, _ := io.ReadAll(resp.Body)
+	var sent struct {
+		ErrCode int    `json:"errcode"`
+		ErrMsg  string `json:"errmsg"`
+	}
+	_ = json.Unmarshal(rb, &sent)
+	if sent.ErrCode != 0 {
+		return fmt.Errorf("WeCom 拒绝(%d): %s", sent.ErrCode, sent.ErrMsg)
+	}
+	return nil
+}

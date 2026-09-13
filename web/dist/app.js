@@ -2375,6 +2375,9 @@ async function viewMachine() {
                 <span>·</span>
                 <span>${statTitle}</span>
                 ${b.print_boost_active ? '<span>·</span><span class="text-warning">打印加强开启</span>' : ''}
+                ${b.chamber_light === undefined || b.chamber_light === null ? '' : (b.chamber_light
+                  ? '<span>·</span><span class="text-amber-400">💡 补光灯 开</span>'
+                  : '<span>·</span><span class="text-base-content/40">💡 补光灯 关</span>')}
               </div>
             </div>
           </div>
@@ -4079,6 +4082,7 @@ async function viewSettings(me) {
       </div>
       <div class="card-actions mt-3">
         <button class="btn btn-primary btn-sm" id="saveai">保存 AI 设置</button>
+        <button class="btn btn-outline btn-sm" id="ai-mon-test">🖨️ 测试打印监控识别</button>
       </div>
     `, "setcat-ai")}
     ${card(`
@@ -4240,6 +4244,18 @@ async function viewSettings(me) {
     await api("/api/settings", { method: "PUT", body: collect() });
     toast("AI 设置已保存", "success");
   });
+  if ($("#ai-mon-test")) $("#ai-mon-test").onclick = (e) => busy(e.currentTarget, async () => {
+    await api("/api/settings", { method: "PUT", body: collect() });
+    toast("正在抓拍并调用视觉模型对比…", "info", { sticky: true });
+    const d = await api("/api/monitor/test", { method: "POST", body: {} });
+    if (d.ok) {
+      toast(d.anomaly ? "⚠️ 判定异常（" + d.level + "）: " + d.desc : "✅ 判定无异常: " + d.desc, d.anomaly ? "warning" : "success");
+    } else if (d.error === "baseline") {
+      toast(d.hint, "info");
+    } else {
+      toast(d.hint || d.error || "测试失败", "error");
+    }
+  }, "mon");
   // 访问令牌：生成（本地随机 32 位 hex）+ 单独保存
   const genToken = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
   const bindToken = (inp, genId, svId) => {
