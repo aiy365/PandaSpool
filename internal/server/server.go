@@ -47,6 +47,12 @@ type Server struct {
 
 	lastLoadedMu       sync.RWMutex
 	lastLoadedFilament string
+
+	// 打印异常监控（printMonitorLoop）
+	monitorMu     sync.Mutex
+	monitorPrev   []byte
+	monitorPrevAt time.Time
+	monitorLast   *monitorResult
 }
 
 func New(dataDir, listen string) (*Server, error) {
@@ -148,12 +154,15 @@ func New(dataDir, listen string) (*Server, error) {
 	mux.HandleFunc("/api/actuators/", s.auth(s.actuator))
 	mux.HandleFunc("/api/camera", s.auth(s.camera))
 	mux.HandleFunc("/api/camera/a1.jpeg", s.auth(s.cameraA1))
+	mux.HandleFunc("/api/monitor/last", s.auth(s.monitorLastHandler))
+	mux.HandleFunc("/api/monitor/test", s.auth(s.monitorTestHandler))
 	mux.HandleFunc("/api/air", s.airAuth(s.air))
 	mux.HandleFunc("/api/ingest/air", s.ingestAir)
 	mux.Handle("/", s.static())
 	s.Handler = withLog(mux)
 	s.applyIntegrations()
 	go s.automate()
+	go s.printMonitorLoop()
 	return s, nil
 }
 
