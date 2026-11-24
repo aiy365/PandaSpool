@@ -13,7 +13,7 @@
     "three": "^0.179.1"
   },
   "devDependencies": {
-    "adm-zip": "^0.5.16",
+    "adm-zip": "^0.6.1",
     "vite": "^7.3.6"
   },
   "allowScripts": {
