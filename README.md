@@ -8,7 +8,7 @@
 
 [![Release](https://img.shields.io/github/v/release/aiy365/PandaSpool?style=flat-square)](https://github.com/aiy365/PandaSpool/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)](LICENSE)
-[![Go](https://img.shields.io/badge/Go-1.22+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
+[![Go](https://img.shields.io/badge/Go-1.26+-00ADD8?style=flat-square&logo=go&logoColor=white)](https://go.dev)
 [![SQLite](https://img.shields.io/badge/SQLite-WAL-003B57?style=flat-square&logo=sqlite&logoColor=white)](https://sqlite.org)
 [![Bambu Lab](https://img.shields.io/badge/Bambu_Lab-MQTT-00AE42?style=flat-square)](https://bambulab.com)
 
@@ -61,7 +61,7 @@ PRINTPILOT_DATA_DIR=/var/lib/printpilot PRINTPILOT_LISTEN=127.0.0.1:8088 ./print
 
 浏览器打开 `http://你的主机:8088`，首次进入会要求创建管理员账号，然后到「设置」页填拓竹/易微联/萤石账号即可。
 
-**方式二：源码构建**（Go ≥ 1.22，前端无需 Node，静态资源已内置）：
+**方式二：源码构建**（Go ≥ 1.26，前端无需 Node，静态资源已内置）：
 
 ```bash
 git clone https://github.com/aiy365/PandaSpool.git
