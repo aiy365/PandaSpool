@@ -17,25 +17,44 @@ import (
 )
 
 type Client struct {
-	mu       sync.RWMutex
-	account  string
-	password string
-	region   string
-	sn       string
-	token    string
-	userID   string
-	mqtt     mqtt.Client
-	mqttUser string
-	snapshot map[string]any
-	lanHost  string
-	lanCode  string
-	updated  time.Time
-	err      string
-	printEnd time.Time
-	needCode bool
+	mu           sync.RWMutex
+	account      string
+	password     string
+	region       string
+	sn           string
+	token        string
+	userID       string
+	mqtt         mqtt.Client
+	mqttUser     string
+	snapshot     map[string]any
+	lanHost      string
+	lanCode      string
+	updated      time.Time
+	err          string
+	printEnd     time.Time
+	needCode     bool
+	boostMinutes int
 }
 
-func New() *Client { return &Client{snapshot: map[string]any{}} }
+func New() *Client { return &Client{snapshot: map[string]any{}, boostMinutes: 10} }
+
+func (c *Client) SetBoostMinutes(m int) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if m <= 0 {
+		m = 10
+	}
+	c.boostMinutes = m
+}
+
+func (c *Client) BoostMinutes() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	if c.boostMinutes <= 0 {
+		return 10
+	}
+	return c.boostMinutes
+}
 
 // ConfigureLAN 配置局域网直连（打印机 IP + 屏幕上的局域网访问码）。
 // 设置了 lanHost 时 MQTT 走打印机本机 8883（用户 bblp），不再依赖拓竹云。
@@ -97,7 +116,11 @@ func (c *Client) Status() map[string]any {
 	}
 	gcode, _ := c.snapshot["gcode_state"].(string)
 	stage := fmt.Sprint(c.snapshot["stage"])
-	boost := PrintingFromState(gcode, stage) || (!c.printEnd.IsZero() && time.Since(c.printEnd) < 30*time.Minute)
+	bm := c.boostMinutes
+	if bm <= 0 {
+		bm = 10
+	}
+	boost := PrintingFromState(gcode, stage) || (!c.printEnd.IsZero() && time.Since(c.printEnd) < time.Duration(bm)*time.Minute)
 	for k, v := range c.snapshot {
 		out[k] = v
 	}
@@ -114,18 +137,30 @@ func (c *Client) HasPrintState() bool {
 	return c.mqtt != nil && c.mqtt.IsConnected()
 }
 
+func (c *Client) IsPrinting() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	gcode, _ := c.snapshot["gcode_state"].(string)
+	stage := fmt.Sprint(c.snapshot["stage"])
+	return PrintingFromState(gcode, stage)
+}
+
 func (c *Client) PrintingOrBoost(minutes int) bool {
 	c.mu.RLock()
 	gcode, _ := c.snapshot["gcode_state"].(string)
 	stage := fmt.Sprint(c.snapshot["stage"])
 	end := c.printEnd
+	bm := c.boostMinutes
 	c.mu.RUnlock()
 
 	if PrintingFromState(gcode, stage) {
 		return true
 	}
 	if minutes <= 0 {
-		minutes = 30
+		minutes = bm
+	}
+	if minutes <= 0 {
+		minutes = 10
 	}
 	return !end.IsZero() && time.Since(end) < time.Duration(minutes)*time.Minute
 }

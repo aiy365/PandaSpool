@@ -242,7 +242,7 @@ func DefaultSettings() Settings {
 	s.EWeLink.Region = "cn"
 	s.Ezviz.Channel = "1"
 	s.Automations.BoxAlwaysOn = true
-	s.Automations.PrintBoostMinutes = 30
+	s.Automations.PrintBoostMinutes = 10
 	s.Automations.RoomOnPresence = true
 	return s
 }
@@ -256,7 +256,7 @@ func (s *Store) LoadSettings() Settings {
 	}
 	_ = json.Unmarshal([]byte(raw), &out)
 	if out.Automations.PrintBoostMinutes <= 0 {
-		out.Automations.PrintBoostMinutes = 30
+		out.Automations.PrintBoostMinutes = 10
 	}
 	if out.Site.Title == "" {
 		out.Site.Title = "PandaSpool"
@@ -286,16 +286,21 @@ func (s *Store) SaveSettings(in Settings) error {
 	if (in.EWeLink.RefreshToken == "" || in.EWeLink.RefreshToken == "********") && !newEWPass && !ewAccountChanged {
 		in.EWeLink.RefreshToken = cur.EWeLink.RefreshToken
 	}
+	newEzSecret := in.Ezviz.AppSecret != "" && in.Ezviz.AppSecret != "********" && in.Ezviz.AppSecret != cur.Ezviz.AppSecret
+	ezKeyChanged := in.Ezviz.AppKey != "" && in.Ezviz.AppKey != cur.Ezviz.AppKey
 	if in.Ezviz.AppSecret == "" || in.Ezviz.AppSecret == "********" {
 		in.Ezviz.AppSecret = cur.Ezviz.AppSecret
 	}
 	if in.Ezviz.VerifyCode == "" || in.Ezviz.VerifyCode == "********" {
 		in.Ezviz.VerifyCode = cur.Ezviz.VerifyCode
 	}
-	if in.Ezviz.AccessToken == "" || in.Ezviz.AccessToken == "********" {
+	if (in.Ezviz.AccessToken == "" || in.Ezviz.AccessToken == "********") && !newEzSecret && !ezKeyChanged {
 		in.Ezviz.AccessToken = cur.Ezviz.AccessToken
+	} else if newEzSecret || ezKeyChanged {
+		in.Ezviz.AccessToken = ""
+		in.Ezviz.TokenExpireAt = 0
 	}
-	if in.Ezviz.TokenExpireAt == 0 {
+	if in.Ezviz.TokenExpireAt == 0 && !newEzSecret && !ezKeyChanged {
 		in.Ezviz.TokenExpireAt = cur.Ezviz.TokenExpireAt
 	}
 	if in.Bambu.Password == "" || in.Bambu.Password == "********" {

@@ -54,3 +54,26 @@ func TestFirstSnapshotFinishDoesNotInventBoost(t *testing.T) {
 		t.Fatal("have snapshot")
 	}
 }
+
+func TestClientIsPrinting(t *testing.T) {
+	c := New()
+	if c.IsPrinting() {
+		t.Fatal("empty client should not be printing")
+	}
+	c.applyPrint(map[string]any{"gcode_state": "RUNNING"})
+	if !c.IsPrinting() {
+		t.Fatal("RUNNING should be printing")
+	}
+	c.applyPrint(map[string]any{"gcode_state": "PAUSE"})
+	if !c.IsPrinting() {
+		t.Fatal("PAUSE should be printing")
+	}
+	c.applyPrint(map[string]any{"gcode_state": "FINISH"})
+	if c.IsPrinting() {
+		t.Fatal("FINISH should not be printing")
+	}
+	c.applyPrint(map[string]any{"gcode_state": "IDLE"})
+	if c.IsPrinting() {
+		t.Fatal("IDLE should not be printing")
+	}
+}

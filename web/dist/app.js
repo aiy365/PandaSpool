@@ -595,13 +595,17 @@ async function viewHome() {
   const printing = !!d.printing;
   const job = m.subtask || m.job || "";
   const remain = m.remaining != null && m.remaining !== "" ? m.remaining : "—";
-  const boost = m.print_boost_active ? `<span class="badge badge-warning badge-sm">打印加强开着</span>` : "";
-  const probe = getProbeFreshness(air.ts);
-  const airAge = probe.ageText;
-  const airStale = !probe.isOnline;
   const mgcode = String(m.gcode_state || "").toUpperCase();
   const mPrinting = printing && !isIdleGcode(mgcode);
   const mFinished = ["FINISH", "FINISHED"].includes(mgcode) || (!mPrinting && (Number(m.progress) === 100 || (m.print_ended_at && (Date.now() - new Date(m.print_ended_at).getTime() < 6 * 3600 * 1000))));
+  const boost = m.print_boost_active
+    ? (mFinished
+        ? `<span class="badge badge-info badge-sm animate-pulse">🌪️ 仓内10分钟空气循环中</span>`
+        : `<span class="badge badge-warning badge-sm">🌪️ 强化排风开启</span>`)
+    : "";
+  const probe = getProbeFreshness(air.ts);
+  const airAge = probe.ageText;
+  const airStale = !probe.isOnline;
   const airPm = air.pm25;
   const todo = [];
   if ((d.drafts || 0) > 0) todo.push(`草稿 ${d.drafts} 条待确认`);
@@ -633,12 +637,12 @@ async function viewHome() {
       ${statCard({
         icon: ppIcon("printer", "w-3.5 h-3.5"),
         title: "机台状态",
-        status: mPrinting ? "任务打印中" : (mFinished ? (bedCooling(m.bed_temp) ? "打印完成 · 降温中" : "打印完成可取件") : (m.connected ? "设备待机就绪" : "机台离线")),
-        statusCls: mPrinting ? "text-primary" : (mFinished ? (bedCooling(m.bed_temp) ? "text-warning" : "text-success") : (m.connected ? "text-base-content/80" : "text-error")),
+        status: mPrinting ? "任务打印中" : (mFinished ? (m.print_boost_active ? "打印完成 · 仓内空气循环中" : (bedCooling(m.bed_temp) ? "打印完成 · 降温中" : "打印完成可取件")) : (m.connected ? "设备待机就绪" : "机台离线")),
+        statusCls: mPrinting ? "text-primary" : (mFinished ? (m.print_boost_active ? "text-info font-semibold" : (bedCooling(m.bed_temp) ? "text-warning" : "text-success")) : (m.connected ? "text-base-content/80" : "text-error")),
         val: mPrinting ? (m.progress ?? 0) : (mFinished ? "100" : (m.connected ? "就绪" : "离线")),
         unit: (mPrinting || mFinished) ? "%" : "",
-        aux: mPrinting ? [["打印耗时", `剩余约 ${m.remaining || "—"} 分钟`], ["活动任务", m.subtask || m.job || "打印中"]] : (mFinished ? [["热床状态", bedStateText(m.bed_temp)], ["最近任务", m.subtask || m.job || "分盘任务已结束"]] : [["通讯协议", m.connected ? "MQTT 局域网在线" : "连接断开"], ["热床工况", `${fmtTemp1(m.bed_temp)}°C · 室温`]]),
-        meta: mPrinting ? "拓竹 A1 高速打印中" : (mFinished ? (bedCooling(m.bed_temp) ? "底板仍热，降温后再取件" : "底板已降温，可随时安全取件") : "点击进入机台控制与视频监控"),
+        aux: mPrinting ? [["打印耗时", `剩余约 ${m.remaining || "—"} 分钟`], ["活动任务", m.subtask || m.job || "打印中"]] : (mFinished ? [["热床状态", bedStateText(m.bed_temp)], ["后处理工况", m.print_boost_active ? "10分钟净化循环" : "自然冷却待取"]] : [["通讯协议", m.connected ? "MQTT 局域网在线" : "连接断开"], ["热床工况", `${fmtTemp1(m.bed_temp)}°C · 室温`]]),
+        meta: mPrinting ? "拓竹 A1 高速打印中" : (mFinished ? (m.print_boost_active ? "净化器加速排出废气中，预计运行 10 分钟后关机" : (bedCooling(m.bed_temp) ? "底板仍热，降温后再取件" : "底板已降温，可随时安全取件")) : "点击进入机台控制与视频监控"),
         href: "#/machine"
       })}
       ${statCard({
@@ -672,7 +676,10 @@ async function viewHome() {
         statusCls: airPm != null ? (airPm <= 35 ? "text-success" : (airPm <= 75 ? "text-warning" : "text-error")) : "text-base-content/50",
         val: airPm != null ? airPm : "—",
         unit: airPm != null ? "µg/m³" : "",
-        aux: [["温湿度", `${air.t_c != null ? `${air.t_c}℃` : "—"} · ${air.rh != null ? `${air.rh}%` : "—"}`], ["人员在场", air.presence ? "有人在场" : "无人静止"]],
+        aux: [
+          ["温湿度", `${air.t_c != null ? `${air.t_c}℃` : "—"} · ${air.rh != null ? `${air.rh}%` : "—"}`],
+          ["双区气相", `${air.tvoc != null ? `${air.tvoc} ppb` : "—"}${air.chamber_tvoc != null ? ` · 仓内 ${air.chamber_tvoc} ppb` : ""}`],
+        ],
         meta: air.ts ? `探头更新于 ${esc(airAge || "刚刚")}` : "等待 ESP32 遥测报文",
         href: "#/air"
       })}
@@ -743,12 +750,16 @@ async function viewHome() {
             }
             if (mFinished) {
               const isCooling = bedCooling(m.bed_temp);
+              const boostRunning = !!m.print_boost_active;
               return `
-                <div class="py-3.5 px-4 ${isCooling ? 'bg-warning/10 border-warning/30 text-warning' : 'bg-success/10 border-success/30 text-success'} border rounded-xl my-2">
-                  <div class="flex items-center gap-2 font-bold text-sm">
-                    ${isCooling ? '<span class="pulse-dot bg-warning"></span> 任务完成，热床仍在降温' : '<span>✓</span> 打印任务已完成'}
+                <div class="py-3.5 px-4 ${boostRunning ? 'bg-info/10 border-info/30 text-info' : (isCooling ? 'bg-warning/10 border-warning/30 text-warning' : 'bg-success/10 border-success/30 text-success')} border rounded-xl my-2">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2 font-bold text-sm">
+                      ${boostRunning ? '<span class="pulse-dot bg-info"></span> 打印完成 · 仓内 10 分钟空气循环净化中' : (isCooling ? '<span class="pulse-dot bg-warning"></span> 任务完成，热床仍在降温' : '<span>✓</span> 打印任务已完成')}
+                    </div>
+                    ${boostRunning ? '<span class="badge badge-info badge-sm">智能排风联锁</span>' : ''}
                   </div>
-                  <p class="text-xs text-base-content/75 mt-1.5 leading-relaxed">${job ? `任务：${esc(job)} · ` : ""}${isCooling ? `热床当前 ${fmtTemp1(m.bed_temp)}°C，底板温度仍高，请等待自然冷却至室温后再取件，避免烫伤或底板形变。` : `热床已降温 (${fmtTemp1(m.bed_temp)}°C)，底板安全可取件。`}</p>
+                  <p class="text-xs text-base-content/75 mt-1.5 leading-relaxed">${job ? `任务：${esc(job)} · ` : ""}${boostRunning ? '仓内正开启空气对流循环，加速底部空气净化器对微颗粒与气相 VOC 的过滤吸附，建议 10 分钟循环结束后再开门取件。' : (isCooling ? `热床当前 ${fmtTemp1(m.bed_temp)}°C，底板温度仍高，请等待自然冷却至室温后再取件，避免烫伤或底板形变。` : `热床已降温 (${fmtTemp1(m.bed_temp)}°C)，底板安全可取件。`)}</p>
                 </div>
                 <div class="grid grid-cols-2 gap-3 my-3">
                   <div class="metric-tile text-center flex flex-col justify-center py-3">
@@ -821,13 +832,35 @@ async function viewHome() {
                   <div class="text-[10px] text-base-content/50">${airPm != null ? (airPm <= 35 ? '优良安全' : (airPm <= 75 ? '高于提醒阈值' : '超标强化排风')) : '等待遥测'}</div>
                 </div>
                 <div class="metric-tile flex flex-col justify-between py-2.5 px-3">
-                  <div class="text-[11px] text-base-content/60 font-medium">车间温湿度</div>
+                  <div class="text-[11px] text-base-content/60 font-medium">车间温湿度 (SHT40)</div>
                   <div class="metric-val-big text-base-content my-1">
                     ${air.t_c ?? "—"}<span class="metric-val-unit">℃</span>
                   </div>
                   <div class="text-[10px] text-base-content/50 font-mono">相对湿度 ${air.rh ?? "—"}%</div>
                 </div>
               </div>
+
+              <!-- 双区气相监测 (机房 ENS160 + 打印仓内 ENS160) -->
+              <div class="grid grid-cols-2 gap-2.5">
+                <div class="metric-tile flex flex-col justify-between py-2.5 px-3">
+                  <div class="text-[11px] text-base-content/60 font-medium">机房气相 (ENS160)</div>
+                  <div class="metric-val-big text-base-content my-1">
+                    ${air.tvoc != null ? air.tvoc : "—"}<span class="metric-val-unit">ppb</span>
+                  </div>
+                  <div class="text-[10px] text-base-content/50 font-mono">${air.eco2 != null ? `eCO2 ${air.eco2} ppm` : '气相良好'}</div>
+                </div>
+                <div class="metric-tile flex flex-col justify-between py-2.5 px-3">
+                  <div class="text-[11px] text-base-content/60 font-medium flex items-center justify-between">
+                    <span>打印仓内 (Chamber)</span>
+                    ${air.chamber_t_c == null && air.chamber_tvoc != null ? '<span class="badge badge-xs badge-ghost">SHT待装</span>' : ''}
+                  </div>
+                  <div class="metric-val-big ${air.chamber_t_c != null ? 'text-accent' : 'text-base-content'} my-1">
+                    ${air.chamber_t_c != null ? `${air.chamber_t_c}<span class="metric-val-unit">℃</span>` : (air.chamber_tvoc != null ? `${air.chamber_tvoc}<span class="metric-val-unit">ppb</span>` : '—')}
+                  </div>
+                  <div class="text-[10px] text-base-content/50 font-mono">${air.chamber_t_c != null ? `湿度 ${air.chamber_rh}% · ${air.chamber_tvoc ?? '—'} ppb` : (air.chamber_tvoc != null ? `气相 TVOC · 仓温待装` : '等待仓内遥测')}</div>
+                </div>
+              </div>
+
               <div class="metric-tile flex items-center justify-between py-2 px-3">
                 <div class="flex items-center gap-2 text-xs">
                   <span class="text-base-content/60 font-medium">微波在场:</span>
@@ -2044,29 +2077,57 @@ async function viewMachine() {
     if ($("#mach")) return;
     $("#page").innerHTML = `<div id="mach">
       <div class="mach-flex">
-      <!-- 右栏：竖屏视频监控（DOM 在前 = 手机端置顶；桌面端 order 靠右整栏） -->
+      <!-- 右栏：视频监控（DOM 在前 = 手机端置顶；桌面端 order 靠右整栏） -->
       <aside class="mach-video-col">
+        <!-- A1 内置摄像头（局域网直连）：位于监控栏顶部，1536:1080 真实比例 -->
+        <div id="a1cam-wrap" style="display:none">
           ${card(`
             <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300/60 pb-3 mb-3">
               <h2 class="card-title text-base flex items-center gap-2">
-                <span>📹</span><span>萤石实时视频监控</span>
+                <span>📷</span><span>A1 内置摄像头 (局域网)</span>
               </h2>
               <div class="flex items-center gap-2">
-                <button type="button" class="btn btn-xs btn-primary gap-1" id="ez-play">▶ 播放视频</button>
-                <button type="button" class="btn btn-xs btn-ghost border border-base-content/15 gap-1" id="ez-stop">■ 停止</button>
+                <span class="badge badge-xs badge-ghost">快照 2.5s</span>
+                <span class="badge badge-xs" id="a1cam-light">补光灯 --</span>
+                <button type="button" class="btn btn-xs btn-primary gap-1" id="a1cam-play">▶ 播放快照</button>
+                <button type="button" class="btn btn-xs btn-ghost" id="a1cam-stop" style="display:none">停止</button>
               </div>
             </div>
-            <div id="ezviz" class="pp-video-stage border border-base-300/80 rounded-xl overflow-hidden shadow-inner flex flex-col items-center justify-center text-sm gap-2">
-              <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-base-100/10 border border-white/10 text-slate-300 text-xs font-mono">
-                <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-                <span>萤石实时视频流 · 监控就绪</span>
+            <div class="rounded-xl overflow-hidden border border-base-300/60 bg-base-300/30 relative flex items-center justify-center w-full shadow-inner" style="aspect-ratio: 64/45;">
+              <img id="a1cam" class="w-full h-full object-contain block" alt="A1 camera" style="display:none">
+              <div id="a1cam-ph" class="w-full h-full flex flex-col items-center justify-center py-6 gap-2 cursor-pointer hover:scale-105 transition-transform" onclick="document.getElementById('a1cam-play')?.click()">
+                <div class="w-11 h-11 rounded-full bg-base-100 shadow-md flex items-center justify-center text-lg text-primary">
+                  ▶
+                </div>
+                <div class="font-medium text-xs text-base-content/75">A1 机内快照未播放</div>
+                <div class="text-[11px] text-base-content/40">点击「播放快照」拉取局域网画面</div>
               </div>
-              <button type="button" class="btn btn-sm btn-primary gap-2 mt-1 shadow-md" onclick="document.getElementById('ez-play')?.click()">
-                <span>▶</span><span>开始监控视频推流</span>
-              </button>
-              <div class="text-[11px] text-slate-400">720P 低延迟 HLS/FLV · 默认待机节约带宽</div>
             </div>
           `)}
+        </div>
+
+        <!-- 萤石实时视频监控：位于监控栏下方 -->
+        ${card(`
+          <div class="flex flex-wrap items-center justify-between gap-2 border-b border-base-300/60 pb-3 mb-3">
+            <h2 class="card-title text-base flex items-center gap-2">
+              <span>📹</span><span>萤石实时视频监控</span>
+            </h2>
+            <div class="flex items-center gap-2">
+              <button type="button" class="btn btn-xs btn-primary gap-1" id="ez-play">▶ 播放视频</button>
+              <button type="button" class="btn btn-xs btn-ghost border border-base-content/15 gap-1" id="ez-stop">■ 停止</button>
+            </div>
+          </div>
+          <div id="ezviz" class="pp-video-stage border border-base-300/80 rounded-xl overflow-hidden shadow-inner flex flex-col items-center justify-center text-sm gap-2 w-full" style="aspect-ratio: 16/9;">
+            <div class="flex items-center gap-2 px-3 py-1 rounded-full bg-base-100/10 border border-white/10 text-slate-300 text-xs font-mono">
+              <span class="w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+              <span>萤石实时视频流 · 监控就绪</span>
+            </div>
+            <button type="button" class="btn btn-sm btn-primary gap-2 mt-1 shadow-md" onclick="document.getElementById('ez-play')?.click()">
+              <span>▶</span><span>开始监控视频推流</span>
+            </button>
+            <div class="text-[11px] text-slate-400">720P 低延迟 HLS/FLV · 默认待机节约带宽</div>
+          </div>
+        `)}
       </aside>
 
       <!-- 左栏：机台全部信息卡 -->
@@ -2137,21 +2198,6 @@ async function viewMachine() {
           `)}
       </div>
       </div>
-
-      <!-- A1 内置摄像头：页面底部通栏（需局域网直连） -->
-      <div id="a1cam-wrap" class="card bg-base-100 shadow-sm border border-base-300/80 p-4 sm:p-6 mt-5" style="display:none">
-        <div class="flex items-center justify-between border-b border-base-300/60 pb-3 mb-3">
-          <h2 class="card-title text-base flex items-center gap-2">
-            <span>📷</span><span>A1 内置摄像头 (局域网)</span>
-          </h2>
-          <span class="badge badge-xs badge-ghost">快照 2s</span>
-          <span class="badge badge-xs" id="a1cam-light">补光灯 --</span>
-        </div>
-        <div class="rounded-xl overflow-hidden border border-base-300/60 bg-base-300/30 relative">
-          <img id="a1cam" class="w-full block" alt="A1 camera" style="display:none">
-          <div id="a1cam-ph" class="text-xs text-base-content/40 py-10 text-center">摄像头离线（局域网不可达或未配置直连）</div>
-        </div>
-      </div>
     </div>`;
 
     $("#mach").onchange = async (e) => {
@@ -2209,13 +2255,35 @@ async function viewMachine() {
         lightBadge.className = "badge badge-xs badge-ghost";
       }
     }
-    // A1 内置摄像头快照轮询（页面离开后自动停止）
-    if (window.__a1camTimer) { clearInterval(window.__a1camTimer); window.__a1camTimer = null; }
+    // A1 内置摄像头快照轮询（按需手动播放，离开页面后自动停止）
+    const a1PlayBtn = document.getElementById("a1cam-play");
+    const a1StopBtn = document.getElementById("a1cam-stop");
+
+    const stopA1Cam = () => {
+      if (window.__a1camTimer) { clearInterval(window.__a1camTimer); window.__a1camTimer = null; }
+      window.__a1camPlaying = false;
+      const img = document.getElementById("a1cam");
+      const ph = document.getElementById("a1cam-ph");
+      if (img) img.style.display = "none";
+      if (ph) {
+        ph.style.display = "flex";
+        ph.innerHTML = `
+          <div class="w-12 h-12 rounded-full bg-base-100 shadow-md flex items-center justify-center text-xl text-primary">
+            ▶
+          </div>
+          <div class="font-medium text-xs text-base-content/75">A1 机内快照未播放</div>
+          <div class="text-[11px] text-base-content/40">点击「播放快照」按需拉取局域网实时画面</div>
+        `;
+      }
+      if (a1PlayBtn) { a1PlayBtn.style.display = ""; a1PlayBtn.textContent = "▶ 播放快照"; a1PlayBtn.disabled = false; }
+      if (a1StopBtn) a1StopBtn.style.display = "none";
+    };
+
     const camTick = async () => {
       const img = document.getElementById("a1cam");
       const wrapEl = document.getElementById("a1cam-wrap");
-      if (!img || !img.isConnected || (wrapEl && wrapEl.style.display === "none")) {
-        if (window.__a1camTimer) { clearInterval(window.__a1camTimer); window.__a1camTimer = null; }
+      if (!img || !img.isConnected || (wrapEl && wrapEl.style.display === "none") || !window.__a1camPlaying) {
+        stopA1Cam();
         return;
       }
       try {
@@ -2227,16 +2295,28 @@ async function viewMachine() {
         img.src = img.__lastURL;
         camOk();
       } catch (e) {
-        camFail();
+        camFail(e.message);
       }
     };
-    const camFail = () => {
+
+    const camFail = (msg) => {
       const img = document.getElementById("a1cam");
       const ph = document.getElementById("a1cam-ph");
       window.__a1camFails = (window.__a1camFails || 0) + 1;
+      if (window.__a1camFails >= 4) {
+        stopA1Cam();
+        if (ph) {
+          ph.innerHTML = `
+            <div class="font-medium text-xs text-error">摄像头获取失败 (${esc(msg || "离线")})</div>
+            <div class="text-[11px] text-base-content/40">请检查 A1 局域网连接，点击重试</div>
+          `;
+        }
+        return;
+      }
       if (img) img.style.display = "none";
       if (ph) ph.style.display = "flex";
     };
+
     const camOk = () => {
       window.__a1camFails = 0;
       const img = document.getElementById("a1cam");
@@ -2244,56 +2324,40 @@ async function viewMachine() {
       if (img) img.style.display = "block";
       if (ph) ph.style.display = "none";
     };
-    if (document.getElementById("a1cam")) {
-      const img0 = document.getElementById("a1cam");
-      img0.onload = camOk;
-      img0.onerror = camFail;
+
+    const startA1Cam = () => {
+      if (window.__a1camPlaying) return;
+      window.__a1camPlaying = true;
       window.__a1camFails = 0;
-      camTick();
-      window.__a1camTimer = setInterval(() => {
-        if (window.__a1camFails >= 4) { camFail(); return; }
-        camTick();
-      }, 2500);
-    }
-    // 竖屏监控：右栏占位底边与左栏齐平——按左栏高度反解视频尺寸，宽度上限
-    // 不超过行宽 55%。占位绝对定位 + 纯像素摆放（部分内核上 flex 交叉轴与
-    // aspect-ratio 组合会把 width 钳回拉伸宽，这里完全绕开）。
-    const sizeEzStage = () => {
-      const mach = document.getElementById("mach");
-      const ezStage = document.getElementById("ezviz");
-      const mainCol = document.querySelector("#mach .mach-main-col");
-      if (!mach || !ezStage || !ezStage.isConnected || !mainCol || !d.ezviz) return;
-      const a = ezvizDisplayAspect(d.ezviz);
-      if (window.innerWidth < 1024) {
-        mach.style.removeProperty("--ez-col-w");
-        ["position", "left", "top", "width", "height", "margin"].forEach((p) => ezStage.style.removeProperty(p));
-        ezStage.style.aspectRatio = String(Math.round(a * 10000) / 10000);
-        ezStage.style.maxHeight = "none";
-        return;
+      if (a1PlayBtn) { a1PlayBtn.style.display = "none"; }
+      if (a1StopBtn) { a1StopBtn.style.display = ""; }
+      const img = document.getElementById("a1cam");
+      const ph = document.getElementById("a1cam-ph");
+      if (ph) {
+        ph.innerHTML = `<span class="loading loading-spinner loading-sm text-primary"></span><div class="text-xs text-base-content/60">正在拉取 A1 快照…</div>`;
       }
-      const body = ezStage.parentElement;
-      const header = body.children[0];
-      const cs = getComputedStyle(body);
-      const padT = parseFloat(cs.paddingTop) || 0, padB = parseFloat(cs.paddingBottom) || 0;
-      const padL = parseFloat(cs.paddingLeft) || 0, padR = parseFloat(cs.paddingRight) || 0;
-      const bT = parseFloat(cs.borderTopWidth) || 0, bB = parseFloat(cs.borderBottomWidth) || 0;
-      const bL = parseFloat(cs.borderLeftWidth) || 0, bR = parseFloat(cs.borderRightWidth) || 0;
-      const topPx = header.offsetHeight + padT + bT;
-      const mainH = mainCol.getBoundingClientRect().height;
-      const availH = Math.max(300, mainH - topPx - padB - bB);
-      const availW = body.clientWidth - padL - padR - bL - bR;
-      const maxW = Math.min(900, window.innerWidth * 0.55);
-      let vh = availH, vw = vh * a;
-      if (vw > maxW) { vw = maxW; vh = vw / a; }
-      mach.style.setProperty("--ez-col-w", Math.round(vw + padL + padR + bL + bR) + "px");
-      ezStage.style.position = "absolute";
-      ezStage.style.left = Math.round(padL + bL + Math.max(0, (availW - vw) / 2)) + "px";
-      ezStage.style.top = Math.round(topPx + Math.max(0, (availH - vh) / 2)) + "px";
-      ezStage.style.width = Math.round(vw) + "px";
-      ezStage.style.height = Math.round(vh) + "px";
-      ezStage.style.aspectRatio = "auto";
+      camTick();
+      if (window.__a1camTimer) clearInterval(window.__a1camTimer);
+      window.__a1camTimer = setInterval(camTick, 2500);
+    };
+
+    if (a1PlayBtn) a1PlayBtn.onclick = startA1Cam;
+    if (a1StopBtn) a1StopBtn.onclick = stopA1Cam;
+
+    // 如果未激活播放，确保定时器处于关闭状态
+    if (!window.__a1camPlaying && window.__a1camTimer) {
+      stopA1Cam();
+    }
+    // 萤石监控舞台宽高比自适应真实画面（按旋转与裁剪计算）
+    const sizeEzStage = () => {
+      const ezStage = document.getElementById("ezviz");
+      if (!ezStage || !ezStage.isConnected || !d.ezviz) return;
+      const a = ezvizDisplayAspect(d.ezviz);
+      ["position", "left", "top", "margin"].forEach((p) => ezStage.style.removeProperty(p));
+      ezStage.style.width = "100%";
+      ezStage.style.height = "auto";
+      ezStage.style.aspectRatio = String(Math.round(a * 10000) / 10000);
       ezStage.style.maxHeight = "none";
-      ezStage.style.margin = "0";
     };
     sizeEzStage();
     requestAnimationFrame(() => sizeEzStage());
@@ -2374,7 +2438,7 @@ async function viewMachine() {
                 ${b.connected ? '<span class="text-success flex items-center gap-1"><span class="pulse-dot bg-success"></span>MQTT 已连接</span>' : '<span class="text-error flex items-center gap-1">○ 未连接</span>'}
                 <span>·</span>
                 <span>${statTitle}</span>
-                ${b.print_boost_active ? '<span>·</span><span class="text-warning">打印加强开启</span>' : ''}
+                ${b.print_boost_active ? (statTitle.includes("完成") ? '<span>·</span><span class="text-info font-medium">🌪️ 仓内10分钟空气循环中</span>' : '<span>·</span><span class="text-warning">🌪️ 强化排风开启</span>') : ''}
                 ${b.chamber_light === undefined || b.chamber_light === null ? '' : (b.chamber_light
                   ? '<span>·</span><span class="text-amber-400">💡 补光灯 开</span>'
                   : '<span>·</span><span class="text-base-content/40">💡 补光灯 关</span>')}
@@ -2679,7 +2743,13 @@ function parseAirTelemetry(desk, rows) {
   let roomStatus = "等待采样";
   let roomStatusCls = "text-base-content/50";
   let roomDiffStr = "暂无对比";
-  if (pm25 != null) {
+  if (!roomOnline) {
+    roomStatus = roomHours != null ? `探头离线 (未更新约 ${roomHours} 小时)` : "探头离线";
+    roomStatusCls = "text-base-content/50 font-medium";
+  } else if (!roomFresh) {
+    roomStatus = roomHours != null ? `未更新约 ${roomHours} 小时` : "未更新";
+    roomStatusCls = "text-base-content/50 font-medium";
+  } else if (pm25 != null) {
     if (pm25 > 35) {
       roomStatus = "高于自定提醒值 (35)";
       roomStatusCls = "text-warning font-semibold";
@@ -2703,6 +2773,9 @@ function parseAirTelemetry(desk, rows) {
   const mob_tvoc_raw = mobData.tvoc != null && !isNaN(Number(mobData.tvoc)) ? Number(mobData.tvoc) : null;
   const mob_eco2 = mobData.eco2 != null ? Number(mobData.eco2) : null;
   const mob_aqi = mobData.aqi != null ? Number(mobData.aqi) : null;
+  const mob_pm25 = mobData.pm25 != null && !isNaN(Number(mobData.pm25)) ? Number(mobData.pm25) : null;
+  const mob_pm10 = mobData.pm10 != null && !isNaN(Number(mobData.pm10)) ? Number(mobData.pm10) : null;
+  const mob_pm1 = mobData.pm1 != null && !isNaN(Number(mobData.pm1)) ? Number(mobData.pm1) : null;
   const mob_t = mobData.t_c ?? mobData.temp;
   const mob_rh = mobData.rh ?? mobData.humidity;
 
@@ -2719,23 +2792,45 @@ function parseAirTelemetry(desk, rows) {
       mobStatus = "低于自定提醒值 (220)";
       mobStatusCls = "text-base-content/80 font-medium";
     }
+  } else if (mob_pm25 != null) {
+    if (mob_pm25 > 35) {
+      mobStatus = `轻度起伏 (${mob_pm25} µg/m³) · 建议通风`;
+      mobStatusCls = "text-warning font-semibold";
+    } else {
+      mobStatus = `优良水平 (${mob_pm25} µg/m³) · 室内安全`;
+      mobStatusCls = "text-success font-semibold";
+    }
   }
 
   // 3. 打印仓内 A (Node A - ESP32-C3 探头)
-  const ch_t = roomData.chamber_t_c ?? roomData.chamber_temp;
-  const ch_rh = roomData.chamber_rh ?? roomData.chamber_humidity;
-  const ch_tvoc = roomData.chamber_tvoc ?? roomData.tvoc;
-  const ch_eco2 = roomData.chamber_eco2 ?? roomData.eco2;
+  const ch_t = roomOnline ? (roomData.chamber_t_c ?? roomData.chamber_temp) : null;
+  const ch_rh = roomOnline ? (roomData.chamber_rh ?? roomData.chamber_humidity) : null;
+  const ch_tvoc = roomOnline ? (roomData.chamber_tvoc ?? roomData.tvoc) : null;
+  const ch_eco2 = roomOnline ? (roomData.chamber_eco2 ?? roomData.eco2) : null;
   const exhaustOn = !!air.exhaust;
 
-  let chamberStatus = ch_t != null ? `当前仓温 ${ch_t} ℃` : "等待读数";
-  let chamberStatusCls = "text-base-content/80 font-medium";
-  if (exhaustOn) {
-    chamberStatus = "排风运行中";
+  let chamberStatus = "等待读数";
+  let chamberStatusCls = "text-base-content/50 font-medium";
+  if (!roomOnline) {
+    chamberStatus = roomHours != null ? `探头离线 (未更新约 ${roomHours} 小时)` : "探头离线";
+    chamberStatusCls = "text-base-content/50 font-medium";
+  } else if (exhaustOn) {
+    chamberStatus = "排风/循环运行中";
     chamberStatusCls = "text-info font-semibold";
   } else if (ch_t != null && ch_t > 45) {
     chamberStatus = "高温预警 (>45℃)";
     chamberStatusCls = "text-warning font-semibold";
+  } else if (ch_t != null) {
+    chamberStatus = `当前仓温 ${ch_t} ℃`;
+    chamberStatusCls = "text-base-content/80 font-medium";
+  } else if (ch_tvoc != null) {
+    if (ch_tvoc > 300) {
+      chamberStatus = `气相关注 (${ch_tvoc} ppb) · 仓温待加装SHT`;
+      chamberStatusCls = "text-warning font-semibold";
+    } else {
+      chamberStatus = `气相良好 (${ch_tvoc} ppb) · 仓温待加装SHT`;
+      chamberStatusCls = "text-success font-semibold";
+    }
   }
 
   return {
@@ -2784,6 +2879,9 @@ function parseAirTelemetry(desk, rows) {
       tvoc: mob_tvoc_raw,
       eco2: mob_eco2,
       aqi: mob_aqi,
+      pm25: mob_pm25,
+      pm10: mob_pm10,
+      pm1: mob_pm1,
       t_c: mob_t != null ? Number(mob_t) : null,
       rh: mob_rh != null ? Number(mob_rh) : null,
     },
@@ -3007,7 +3105,8 @@ function buildAirTooltip(dark, printIntervals, presenceRes) {
       // 提示背景事件
       const hitP = printIntervals.find((it) => timeMs >= it.start && timeMs <= it.end);
       if (hitP) {
-        html += `<div class="text-[11px] text-emerald-500 font-semibold mb-0.5">● 打印区活动中 (A1)${hitP.fil ? " · " + esc(hitP.fil) : ""}</div>`;
+        const dotColor = hitP.filColor ? esc(hitP.filColor) : "#10b981";
+        html += `<div class="text-[11px] font-semibold mb-0.5 flex items-center gap-1.5"><span class="inline-block w-2.5 h-2.5 rounded-full border border-base-content/25 flex-shrink-0" style="background-color:${dotColor}"></span><span class="text-emerald-500 font-semibold">打印区活动中 (A1)</span>${hitP.fil ? `<span class="opacity-80">· ${esc(hitP.fil)}</span>` : ""}</div>`;
       }
       if (presenceRes && presenceRes.hasHistory) {
         const isPres = presenceRes.intervals.some((it) => timeMs >= it.start && timeMs <= it.end);
@@ -3032,26 +3131,85 @@ function buildAirTooltip(dark, printIntervals, presenceRes) {
   };
 }
 
-function hexRgba(hex, alpha) {
+function parseHexRgb(hex) {
   const c = String(hex || "").replace("#", "");
-  if (c.length < 6) return "";
+  if (c.length < 6) return null;
   const r = parseInt(c.slice(0, 2), 16), g = parseInt(c.slice(2, 4), 16), b = parseInt(c.slice(4, 6), 16);
-  if ([r, g, b].some((v) => isNaN(v))) return "";
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  if ([r, g, b].some((v) => isNaN(v))) return null;
+  return { r, g, b };
 }
-// A1 打印时段背景带：按该时段进料耗材着色并标注名称（进料时刻样本上的章）
+
+function hexRgba(hex, alpha) {
+  const rgb = parseHexRgb(hex);
+  if (!rgb) return "";
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${alpha})`;
+}
+
+// A1 打印时段背景带：按该时段进料耗材着色并标注名称（解决纯白/超浅色及深色耗材在亮暗主题下的对比度缺失问题）
 function printMarkAreaData(printIntervals, dark) {
   const data = [];
   (printIntervals || []).forEach((it) => {
-    const tint = hexRgba(it.filColor, 0.16) || "rgba(34, 197, 94, 0.12)";
+    const filName = it.fil ? it.fil.trim() : "A1 打印";
+    const rgb = parseHexRgb(it.filColor);
+
+    let bgTint = "rgba(34, 197, 94, 0.16)";
+    let borderTint = "rgba(34, 197, 94, 0.50)";
+    let textCol = dark ? "#4ade80" : "#15803d";
+    let prefix = "● ";
+
+    if (rgb) {
+      const lum = 0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b;
+      if (lum >= 200) {
+        // 白色 / 极浅色耗材（如余兄弟 PETG Basic #FFFFFF）
+        prefix = "⚪ ";
+        if (dark) {
+          bgTint = "rgba(255, 255, 255, 0.22)";
+          borderTint = "rgba(255, 255, 255, 0.65)";
+          textCol = "#ffffff";
+        } else {
+          // 浅色模式折线图为白底，使用温润浅石板灰衬托白耗材，边框用清晰深灰虚线
+          bgTint = "rgba(203, 213, 225, 0.50)";
+          borderTint = "rgba(100, 116, 139, 0.75)";
+          textCol = "#1e293b";
+        }
+      } else if (lum <= 40) {
+        // 黑色 / 极深色耗材
+        prefix = "⚫ ";
+        if (dark) {
+          bgTint = "rgba(0, 0, 0, 0.45)";
+          borderTint = "rgba(148, 163, 184, 0.60)";
+          textCol = "#e2e8f0";
+        } else {
+          bgTint = "rgba(15, 23, 42, 0.20)";
+          borderTint = "rgba(15, 23, 42, 0.55)";
+          textCol = "#0f172a";
+        }
+      } else {
+        // 彩色耗材（红/蓝/绿/橙/黄/紫等）：使用耗材真实颜色并添加清晰边框
+        bgTint = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${dark ? 0.24 : 0.18})`;
+        borderTint = `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, 0.70)`;
+        textCol = dark ? (lum < 100 ? "#93c5fd" : `rgb(${Math.min(255, rgb.r + 40)}, ${Math.min(255, rgb.g + 40)}, ${Math.min(255, rgb.b + 40)})`)
+                       : (lum > 160 ? "#0f172a" : `rgb(${Math.max(0, rgb.r - 30)}, ${Math.max(0, rgb.g - 30)}, ${Math.max(0, rgb.b - 30)})`);
+      }
+    }
+
     data.push([
       {
-        name: it.fil || "A1 打印",
+        name: prefix + filName,
         xAxis: it.start,
-        itemStyle: { color: tint },
+        itemStyle: {
+          color: bgTint,
+          borderColor: borderTint,
+          borderWidth: 1.5,
+          borderType: "dashed",
+        },
         label: {
-          show: true, position: "insideTop", formatter: it.fil || "A1 打印",
-          color: dark ? "#4ade80" : "#15803d", fontSize: 10,
+          show: true,
+          position: "insideTop",
+          formatter: prefix + filName,
+          color: textCol,
+          fontSize: 10,
+          fontWeight: 600,
         },
       },
       { xAxis: it.end },
@@ -3390,6 +3548,19 @@ function buildEnvChartOption(rangeMin, asc, dark, options = {}) {
   const validChT = chTemp.filter((p) => p && p[1] != null && p[0] >= minTime);
   const peakChT = findPeak(validChT);
 
+  const markAreaData = [];
+  if (options.showBgPrint !== false && printIntervals.length > 0) {
+    markAreaData.push(...printMarkAreaData(printIntervals, dark));
+  }
+  if (options.showBgPresence !== false && presenceRes.hasHistory && presenceRes.intervals.length > 0) {
+    presenceRes.intervals.forEach((it) => {
+      markAreaData.push([
+        { name: "有人活动", xAxis: it.start, itemStyle: { color: "rgba(236, 72, 153, 0.12)" }, label: { show: false } },
+        { xAxis: it.end },
+      ]);
+    });
+  }
+
   const series = [
     {
       name: "仓内温度",
@@ -3406,6 +3577,10 @@ function buildEnvChartOption(rangeMin, asc, dark, options = {}) {
         symbolSize: 32,
         itemStyle: { color: "#f59e0b" },
         label: { fontSize: 10, color: "#fff" },
+      } : undefined,
+      markArea: markAreaData.length > 0 ? {
+        silent: true,
+        data: markAreaData,
       } : undefined,
     },
     {
@@ -3608,17 +3783,20 @@ async function viewAir() {
     badge: { text: "测点 A (PMS5003)", cls: "badge-primary badge-outline" },
   });
 
-  // 观察对象二：移动测点 B (S3 + ENS160 + AHT20)
+  // 观察对象二：移动测点 B (S3 + ENS160 + AHT20 / PMS5003)
+  const mobHasTvoc = telem.mobile.tvoc != null;
+  const mobHasPm = telem.mobile.pm25 != null;
   const mobCardHtml = statCard({
     icon: ppIcon("wind", "w-3.5 h-3.5 text-secondary"),
     title: "移动测点 B",
     status: telem.mobile.status,
     statusCls: telem.mobile.statusCls,
-    val: telem.mobile.tvoc != null ? telem.mobile.tvoc : "—",
+    val: mobHasTvoc ? telem.mobile.tvoc : (mobHasPm ? telem.mobile.pm25 : "—"),
     valBadge: !telem.mobile.fresh ? { text: "历史", cls: "badge-warning badge-outline" } : null,
-    unit: "ppb TVOC",
+    unit: mobHasTvoc ? "ppb TVOC" : (mobHasPm ? "µg/m³ PM2.5" : "—"),
     aux: [
       ["当前位置", esc(telem.mobile.location)],
+      ["测点颗粒物", mobHasPm ? `${telem.mobile.pm25} µg/m³ (PM10: ${telem.mobile.pm10 ?? '—'})` : (mobHasTvoc ? "未接颗粒传感器" : "—")],
       ["测点温湿", `${telem.mobile.t_c != null ? `${telem.mobile.t_c} ℃ · ${telem.mobile.rh} %` : "—"}${!telem.mobile.fresh ? " (历史)" : ""}`],
       ["数据状态", telem.mobile.fresh ? "实时在线采集中" : "移动端未更新 · 保留最后有效值"],
     ],
@@ -3627,46 +3805,66 @@ async function viewAir() {
   });
 
   // 观察对象三：打印仓内 A (ESP32-C3 仓内探头)
+  const chHasTemp = telem.chamber.t_c != null;
+  const chHasTvoc = telem.chamber.tvoc != null;
   const chamberCardHtml = statCard({
     icon: ppIcon("spool", "w-3.5 h-3.5 text-accent"),
     title: "打印仓内 A",
     status: telem.chamber.status,
     statusCls: telem.chamber.statusCls,
-    val: telem.chamber.t_c != null ? telem.chamber.t_c : "—",
-    unit: "℃ 仓温",
-    aux: [
+    val: chHasTemp ? telem.chamber.t_c : (chHasTvoc ? telem.chamber.tvoc : "—"),
+    unit: chHasTemp ? "℃ 仓温" : (chHasTvoc ? "ppb TVOC" : "—"),
+    aux: chHasTemp ? [
       ["仓内湿度", telem.chamber.rh != null ? `${telem.chamber.rh} %` : "—"],
       ["仓内 TVOC", telem.chamber.tvoc != null ? `${telem.chamber.tvoc} ppb` : "—"],
       ["关联机台", telem.printer.isPrinting ? "打印中 · Bambu A1" : "空闲待机"],
+    ] : [
+      ["仓内气相", chHasTvoc ? `${telem.chamber.tvoc} ppb (eCO2: ${telem.chamber.eco2 ?? '—'})` : "—"],
+      ["仓内温湿", "待加装 SHT40 并联"],
+      ["关联机台", telem.printer.isPrinting ? "打印中 · Bambu A1" : "空闲待机"],
     ],
     meta: `最新采样：${telem.chamber.ageStr}`,
-    badge: { text: "仓内探头 (C3)", cls: "badge-accent badge-outline" },
+    badge: { text: chHasTemp ? "仓内探头 (SHT40)" : "仓内气相 (ENS160)", cls: "badge-accent badge-outline" },
   });
 
   // 3 列紧凑指标汇总横条（同一标准：最新采样、区间峰值、近30分钟变化）
+  const chSummaryTitle = chHasTemp ? "1. 打印仓内温度" : "1. 打印仓内气相 (TVOC)";
+  const chValStr = chHasTemp
+    ? `${telem.chamber.t_c != null ? telem.chamber.t_c : '—'} <span class="text-xs font-normal text-base-content/60">℃</span>`
+    : (chHasTvoc ? `${telem.chamber.tvoc} <span class="text-xs font-normal text-base-content/60">ppb</span>` : '—');
+  const chPeakStr = chHasTemp
+    ? (chamberTempPeak ? `${chamberTempPeak.val} <span class="text-xs font-normal text-base-content/60">℃</span>` : '—')
+    : (chamberTvocPeak ? `${chamberTvocPeak.val} <span class="text-xs font-normal text-base-content/60">ppb</span>` : '—');
+  const chPeakSub = chHasTemp
+    ? (chamberTempPeak ? `发生于 ${formatTime(chamberTempPeak.ts)}` : '无峰值')
+    : (chamberTvocPeak ? `发生于 ${formatTime(chamberTvocPeak.ts)}` : '选区无数据');
+  const chTrend = chHasTemp
+    ? chamberTempTrend
+    : calculate30MinTrend(chamberTvocPoints, nowMs, telem.chamber.fresh, "ppb");
+
   const summaryStripHtml = `
     <div class="pp-air-summary-strip">
-      <!-- 1. 打印仓内温度 -->
+      <!-- 1. 打印仓内指标 -->
       <div class="pp-air-summary-col">
         <div class="pp-air-summary-col-head">
-          <span class="pp-air-summary-col-title">${ppIcon("spool", "w-3.5 h-3.5 text-accent")} 1. 打印仓内温度</span>
+          <span class="pp-air-summary-col-title">${ppIcon("spool", "w-3.5 h-3.5 text-accent")} ${chSummaryTitle}</span>
           <span class="badge badge-xs ${telem.chamber.exhaustOn ? 'badge-info' : 'badge-ghost'}">${telem.chamber.exhaustOn ? '排风开启' : '排风待机'}</span>
         </div>
         <div class="pp-air-summary-cells">
           <div class="pp-air-cell">
             <span class="pp-air-cell-label">最新采样</span>
-            <span class="pp-air-cell-val font-mono text-accent">${telem.chamber.t_c != null ? telem.chamber.t_c : '—'} <span class="text-xs font-normal text-base-content/60">℃</span></span>
+            <span class="pp-air-cell-val font-mono text-accent">${chValStr}</span>
             <span class="pp-air-cell-sub">${telem.chamber.ageStr} · ${telem.room.fresh ? '实时' : '历史'}</span>
           </div>
           <div class="pp-air-cell">
             <span class="pp-air-cell-label">区间峰值</span>
-            <span class="pp-air-cell-val font-mono text-accent">${chamberTempPeak ? chamberTempPeak.val : '—'} <span class="text-xs font-normal text-base-content/60">℃</span></span>
-            <span class="pp-air-cell-sub">${chamberTempPeak ? `发生于 ${formatTime(chamberTempPeak.ts)}` : '无峰值'}</span>
+            <span class="pp-air-cell-val font-mono text-accent">${chPeakStr}</span>
+            <span class="pp-air-cell-sub">${chPeakSub}</span>
           </div>
           <div class="pp-air-cell">
             <span class="pp-air-cell-label">近30分钟变化</span>
-            <span class="pp-air-cell-val text-sm font-semibold ${chamberTempTrend.cls}">${chamberTempTrend.text}</span>
-            <span class="pp-air-cell-sub">${chamberTempTrend.diffStr || '30分钟窗口'}</span>
+            <span class="pp-air-cell-val text-sm font-semibold ${chTrend.cls}">${chTrend.text}</span>
+            <span class="pp-air-cell-sub">${chTrend.diffStr || '30分钟窗口'}</span>
           </div>
         </div>
       </div>
@@ -3850,6 +4048,9 @@ async function viewAir() {
             左轴温度 (实线 · ℃) · 右轴相对湿度 (虚线 · %) · 观察加热与通风状态下的温湿平衡
           </div>
         </div>
+        <div class="flex items-center gap-3 flex-wrap">
+          ${bgControlsHtml}
+        </div>
       </div>
       <div id="air-chart-env" style="height: 320px; width: 100%;"></div>
       <details class="mt-2 text-xs text-base-content/60">
@@ -4000,7 +4201,7 @@ async function viewAir() {
     }
     if (elEnv) {
       envChart = echarts.init(elEnv);
-      envChart.setOption(buildEnvChartOption(range, asc, dark));
+      envChart.setOption(buildEnvChartOption(range, asc, dark, { showBgPrint, showBgPresence }));
       window.__airCharts.push(envChart);
     }
 

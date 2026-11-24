@@ -39,11 +39,6 @@ type Server struct {
 	lastAirPrune string
 
 	notifiedPrintEnd time.Time
-	// 首层提醒的任务感知状态：只有亲眼见过当前任务的第 0/1 层才会在
-	// 第 2 层以后提醒，重启不会把进行中的任务误报成首层完成。
-	lastJob         string
-	layer1Seen      bool
-	layer1Notified  bool
 
 	lastLoadedMu       sync.RWMutex
 	lastLoadedFilament string
@@ -151,9 +146,9 @@ func New(dataDir, listen string) (*Server, error) {
 	mux.HandleFunc("/llms.txt", s.authAI(s.llmsTxt))
 	mux.HandleFunc("/api/desk", s.authDesk(s.desk))
 	mux.HandleFunc("/api/machine", s.auth(s.machine))
-	mux.HandleFunc("/api/actuators/", s.auth(s.actuator))
-	mux.HandleFunc("/api/camera", s.auth(s.camera))
-	mux.HandleFunc("/api/camera/a1.jpeg", s.auth(s.cameraA1))
+	mux.HandleFunc("/api/actuators/", s.authDesk(s.actuator))
+	mux.HandleFunc("/api/camera", s.authDesk(s.camera))
+	mux.HandleFunc("/api/camera/a1.jpeg", s.authDesk(s.cameraA1))
 	mux.HandleFunc("/api/monitor/last", s.auth(s.monitorLastHandler))
 	mux.HandleFunc("/api/monitor/test", s.auth(s.monitorTestHandler))
 	mux.HandleFunc("/api/air", s.airAuth(s.air))
@@ -369,35 +364,28 @@ func (s *Server) summary(w http.ResponseWriter, r *http.Request) {
 	out["opened"] = spOpened
 	out["spools"] = spTotal
 	st := s.bambu.Status()
-	if fil, _ := resolveLoadedFilament(s, st, s.bambu.HasPrintState()); fil != "" {
+	if fil, col := resolveLoadedFilament(s, st, s.bambu.HasPrintState()); fil != "" {
 		st["loaded_filament"] = fil
+		if col != "" {
+			st["loaded_filament_color"] = col
+		}
 	}
 	gcode, _ := st["gcode_state"].(string)
 	stage, _ := st["stage"].(string)
 	out["machine"] = st
 	out["printing"] = bambu.PrintingFromState(gcode, stage)
+	now := time.Now()
+	out["server_time"] = now.Unix()
 	// 区分机位环境（仓内/仓外）与移动探测环境
 	if sample, err := s.st.LatestMachineAir(); err == nil && sample != nil {
-		air := map[string]any{}
-		if data, ok := sample["data"].(map[string]any); ok {
-			for k, v := range data {
-				air[k] = v
-			}
-		}
-		air["ts"] = sample["ts"]
-		out["air"] = air
+		out["air"] = formatAirMap(sample, now)
 	} else {
-		out["air"] = map[string]any{}
+		out["air"] = map[string]any{"online": false, "is_live": false, "is_stale": true}
 	}
 	if mobileSample, err := s.st.LatestAirByZone("mobile"); err == nil && mobileSample != nil {
-		mobile := map[string]any{}
-		if data, ok := mobileSample["data"].(map[string]any); ok {
-			for k, v := range data {
-				mobile[k] = v
-			}
-		}
-		mobile["ts"] = mobileSample["ts"]
-		out["mobile"] = mobile
+		out["mobile"] = formatAirMap(mobileSample, now)
+	} else {
+		out["mobile"] = map[string]any{"online": false, "is_live": false, "is_stale": true}
 	}
 	drafts, _ := s.st.GovernanceCounts()
 	out["drafts"] = drafts
@@ -1087,31 +1075,86 @@ POST /api/ai/drafts      提交草稿，body 为 claims 数组或 {"drafts":[...
 
 func (s *Server) desk(w http.ResponseWriter, r *http.Request) { s.machine(w, r) }
 
+const AirFreshThresholdSec = 300 // 5 分钟无采样上报判定为离线
+
+func formatAirMap(sample map[string]any, now time.Time) map[string]any {
+	airMap := map[string]any{
+		"online":   false,
+		"is_live":  false,
+		"is_stale": true,
+	}
+	if sample == nil {
+		return airMap
+	}
+	tsVal, _ := sample["ts"].(int64)
+	if tsVal == 0 {
+		return airMap
+	}
+	airMap["ts"] = tsVal
+	ageSec := int64(now.Sub(time.Unix(tsVal, 0)).Seconds())
+	if ageSec < 0 {
+		ageSec = 0
+	}
+	airMap["age_sec"] = ageSec
+	isOnline := ageSec <= AirFreshThresholdSec
+	airMap["online"] = isOnline
+	airMap["is_live"] = isOnline
+	airMap["is_stale"] = !isOnline
+
+	if data, ok := sample["data"].(map[string]any); ok {
+		for k, v := range data {
+			airMap[k] = v
+		}
+	}
+
+	// 离线时（断电/探头拔出），清空所有瞬时测量指标，杜绝旧缓存冒充实时读数
+	if !isOnline {
+		delete(airMap, "chamber_t_c")
+		delete(airMap, "chamber_rh")
+		delete(airMap, "chamber_temp")
+		delete(airMap, "chamber_humidity")
+		delete(airMap, "chamber_tvoc")
+		delete(airMap, "chamber_eco2")
+		delete(airMap, "chamber_aqi")
+		delete(airMap, "t_c")
+		delete(airMap, "rh")
+		delete(airMap, "temp")
+		delete(airMap, "humidity")
+		delete(airMap, "pm1")
+		delete(airMap, "pm1_0")
+		delete(airMap, "pm25")
+		delete(airMap, "pm10")
+		delete(airMap, "tvoc")
+		delete(airMap, "eco2")
+		delete(airMap, "aqi")
+		delete(airMap, "presence")
+	}
+	return airMap
+}
+
 func (s *Server) machine(w http.ResponseWriter, r *http.Request) {
 	bambuStatus := s.bambu.Status()
-	if fil, _ := resolveLoadedFilament(s, bambuStatus, s.bambu.HasPrintState()); fil != "" {
+	if fil, col := resolveLoadedFilament(s, bambuStatus, s.bambu.HasPrintState()); fil != "" {
 		bambuStatus["loaded_filament"] = fil
+		if col != "" {
+			bambuStatus["loaded_filament_color"] = col
+		}
 	}
 	cfg := s.st.LoadSettings()
 
-	airMap := map[string]any{}
+	now := time.Now()
+	var airMap map[string]any
 	if sample, err := s.st.LatestMachineAir(); err == nil && sample != nil {
-		if data, ok := sample["data"].(map[string]any); ok {
-			for k, v := range data {
-				airMap[k] = v
-			}
-		}
-		airMap["ts"] = sample["ts"]
+		airMap = formatAirMap(sample, now)
+	} else {
+		airMap = map[string]any{"online": false, "is_live": false, "is_stale": true}
 	}
 
-	mobileMap := map[string]any{}
+	var mobileMap map[string]any
 	if sample, err := s.st.LatestAirByZone("mobile"); err == nil && sample != nil {
-		if data, ok := sample["data"].(map[string]any); ok {
-			for k, v := range data {
-				mobileMap[k] = v
-			}
-		}
-		mobileMap["ts"] = sample["ts"]
+		mobileMap = formatAirMap(sample, now)
+	} else {
+		mobileMap = map[string]any{"online": false, "is_live": false, "is_stale": true}
 	}
 
 	if devs, err := s.ew.Devices(); err == nil {
@@ -1135,11 +1178,13 @@ func (s *Server) machine(w http.ResponseWriter, r *http.Request) {
 	ezStatus["crop"] = cfg.Ezviz.Crop
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]any{
-		"bambu":    bambuStatus,
-		"printing": s.bambu.HasPrintState(),
-		"air":      airMap,
-		"mobile":   mobileMap,
-		"ezviz":    ezStatus,
+		"server_time": now.Unix(),
+		"bambu":       bambuStatus,
+		"printing":    s.bambu.HasPrintState(),
+		"air":         airMap,
+		"air_ts":      airMap["ts"],
+		"mobile":      mobileMap,
+		"ezviz":       ezStatus,
 	})
 }
 
@@ -1625,6 +1670,7 @@ func (s *Server) applyIntegrations() {
 	cfg := s.st.LoadSettings()
 	s.bambu.Configure(cfg.Bambu.Region, cfg.Bambu.Account, cfg.Bambu.Password, cfg.Bambu.PrinterSN, cfg.Bambu.AccessToken)
 	s.bambu.ConfigureLAN(cfg.Bambu.LanHost, cfg.Bambu.LanCode, cfg.Bambu.PrinterSN)
+	s.bambu.SetBoostMinutes(cfg.Automations.PrintBoostMinutes)
 	s.bambu.Reconnect()
 	s.ew.Configure(ewelink.Config{
 		Region:       cfg.EWeLink.Region,

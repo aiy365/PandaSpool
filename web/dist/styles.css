@@ -1617,16 +1617,13 @@ body, .card, .topbar, .btn, .badge { transition: background-color 0.18s ease, bo
 .p-3 { padding: 0.75rem; }
 .p-5 { padding: 1.25rem; }
 
-/* 机台页：视频独占右栏（DOM 在前=手机端置顶，桌面端 order 靠右整栏） */
+/* 机台页：视频监控右栏（DOM 在前=手机端置顶，桌面端 order 靠右整栏） */
 .mach-flex { display: flex; flex-direction: column; gap: 1.25rem; align-items: stretch; }
-#mach .mach-video-col { width: 100%; }
+#mach .mach-video-col { width: 100%; display: flex; flex-direction: column; gap: 1.25rem; }
 @media (min-width: 1024px) {
   .mach-flex { flex-direction: row; }
-  /* 栏宽由 JS 按裁剪比例反解写入 --ez-col-w；占位用绝对定位纯像素摆放（避开
-     flex 交叉轴 / aspect-ratio 在部分内核上的尺寸怪癖），底边与左栏齐平 */
-  #mach .mach-video-col { order: 2; width: var(--ez-col-w, 400px); }
+  /* 右侧监控栏设为黄金比例宽度 (440px)，左侧机台信息自然拉伸占满 */
+  #mach .mach-video-col { order: 2; width: var(--mach-video-w, 440px); flex-shrink: 0; }
   #mach .mach-main-col { order: 1; flex: 1 1 0%; min-width: 0; }
-  #mach .mach-video-col .card { height: 100%; display: flex; flex-direction: column; }
-  #mach .mach-video-col .card-body { flex: 1 1 0%; min-height: 0; position: relative; padding-bottom: 0; }
-  #mach .mach-video-col .card-body > div:first-of-type { flex: 0 0 auto; }
 }
+

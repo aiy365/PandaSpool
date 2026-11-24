@@ -31,18 +31,43 @@ type monitorResult struct {
 	Raw     string    `json:"raw,omitempty"`
 }
 
-const monitorPrompt = `你是 3D 打印机的监控助手。下面是同一个监控摄像头在约 20 分钟间隔拍摄的两张快照（第一张较早，第二张较晚），打印机为拓竹 A1，当前可能有打印任务进行中。
-请对比两张图片，判断打印过程是否出现明显异常，例如：
-- 乱丝/拉丝大量堆积（spaghetti）
-- 模型从热床脱落或掀边严重
-- 打印件悬空失败、层间明显错位
-- 烟雾或明火迹象
-- 打印机被移动、摄像头被遮挡或转向
-- 热床上的纸片、工具等异物被撞飞
-注意：正常的打印进程、耗材消耗、喷嘴位置变化、灯光或画质（夜视/彩色）差异都不算异常。
+func buildMonitorPrompt(rot string) string {
+	rotDesc := "受封箱内部安装空间限制，摄像头本体侧置固定安装（画面具有固定的约 90 度侧转角度：画面左侧为热床及打印板，呈竖向纵深延伸；画面上方为机身前部与触摸屏；画面右侧为打印机底座与 Z 轴立柱）。"
+	switch strings.TrimSpace(rot) {
+	case "0":
+		rotDesc = "摄像头固定安装在封箱内正向机位。"
+	case "180":
+		rotDesc = "摄像头为倒装吊顶安装（画面呈 180 度倒置）。"
+	case "-90":
+		rotDesc = "摄像头本体向左侧置固定安装（画面呈向左 90 度侧转）。"
+	}
+
+	return fmt.Sprintf(`你是 3D 打印机的视觉监控助手。下面是同一个监控摄像头在约 20 分钟间隔拍摄的两张快照（第一张较早，第二张较晚），打印机为拓竹 Bambu Lab A1，当前正在进行打印任务。
+
+【监控机位与构图说明（非常重要）】：
+1. 摄像头安装位置：固定安装在打印机封闭机箱（封箱）内部，处于机身前右上方侧俯视机位，镜头固定朝向拓竹 A1。
+2. 画面物理旋转特征：%s
+3. 动态机构正常位移说明：
+   - 拓竹 A1 为卧式平台打印机（Bed-slinger），打印过程中热床沿 Y 轴前后滑动平移、喷头在横梁上左右移动均属于完全正常的机械运动。
+   - 侧置视角和构图为摄像头的固定基准朝向，严禁将画面的侧向旋转构图、或热床/喷头的正常打印移动误判为“打印机被移动”、“摄像头被转向”或“机身倾倒”。
+
+【需要判定的异常情形】：
+请重点对比两张图片中热床表面正在打印的“模型本体”，判断是否发生以下严重打印故障：
+- 乱丝 / 吐丝大量堆积（Spaghetti 炒面故障）
+- 模型完全从热床脱落移位、倾倒或严重翘边掀起
+- 打印件悬空失控、层间严重断裂错位
+- 封箱内出现烟雾或明火险情
+
+【正常现象（必须判定为无异常）】：
+- 模型随着打印进度正常逐层增高、体积增加
+- 热床和喷嘴在不同工位之间的正常位置切换
+- 耗材挤出微小粗细纹理变化、夜视/补光灯光照反射变化
+- 摄像头固有视角的静止背景
+
 严格输出且仅输出一个合法 JSON 对象，不要包含 markdown 标记，格式如下：
 {"anomaly": false, "level": "none", "desc": "一句简短中文描述"}
-anomaly 为 true 时 level 用 warn 或 critical，desc 写明异常类型与位置；无异常时 level 用 none。`
+anomaly 为 true 时 level 用 warn 或 critical，desc 写明异常类型与位置；无异常时 level 用 none。`, rotDesc)
+}
 
 func (s *Server) monitorSetResult(r *monitorResult) {
 	s.monitorMu.Lock()
@@ -58,10 +83,13 @@ func (s *Server) monitorSetSnapshot(jpeg []byte) {
 }
 
 // monitorTick 执行一次监控周期：抓拍 -> 与上一张对比（打印中才调用视觉）->
-// 异常推企业微信（附抓拍图）。空闲时只刷新基线，不消耗视觉 API。
+// 异常推企业微信（附抓拍图）。非打印时间不抓拍、不对比、不发给大模型。
 func (s *Server) monitorTick() {
-	// 只在打印中生效：非打印时间不抓拍、不调用、不产生任何请求
-	if !s.bambu.HasPrintState() {
+	// 只在打印中生效：非打印时间不抓拍、不对比、不发给大模型，并重置基线快照
+	if !s.bambu.IsPrinting() {
+		s.monitorMu.Lock()
+		s.monitorPrev = nil
+		s.monitorMu.Unlock()
 		return
 	}
 
@@ -311,10 +339,11 @@ func (s *Server) visionCompareMonitor(prevJPEG, curJPEG []byte) (anomaly bool, l
 	b64Prev := base64.StdEncoding.EncodeToString(prevJPEG)
 	b64Cur := base64.StdEncoding.EncodeToString(curJPEG)
 
+	prompt := buildMonitorPrompt(cfg.Ezviz.Rotation)
 	payload := map[string]any{
 		"model": model,
 		"messages": []any{
-			map[string]any{"role": "system", "content": monitorPrompt},
+			map[string]any{"role": "system", "content": prompt},
 			map[string]any{
 				"role": "user",
 				"content": []any{
