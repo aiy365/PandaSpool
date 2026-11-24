@@ -20,7 +20,7 @@ keywords = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest>=8,<9"]
+test = ["pytest>=8,<10"]
 
 [project.scripts]
 printpilot-material = "printpilot_material_lab.cli:main"
