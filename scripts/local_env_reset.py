@@ -8,7 +8,9 @@ import subprocess
 
 SRC = r"C:\work\3D模型\PandaSpool-front-audit\20260907-184330\app.sqlite3"
 DST = r"C:\work\3D模型\ui-opt-20260907\app.sqlite3"
-PROD = "root@159.75.227.95"
+# 生产 SSH 目标与测试管理员口令都不入库，运行时从环境变量取。
+PROD = os.environ.get("PP_PROD_SSH", "root@<server-host>")
+TEST_ADMIN_PASSWORD = os.environ.get("PP_TEST_ADMIN_PASSWORD", "changeme")
 
 # 1) 恢复审计克隆（主文件 + WAL + SHM 三件一起拷，缺 WAL 会丢数据）
 src_dir = os.path.dirname(SRC)
@@ -22,7 +24,7 @@ for ext in ("", "-wal"):
 h = bcrypt_hash = None
 try:
     import bcrypt
-    h = bcrypt.hashpw(b"uiopt2026", bcrypt.gensalt(10)).decode()
+    h = bcrypt.hashpw(TEST_ADMIN_PASSWORD.encode(), bcrypt.gensalt(10)).decode()
 except ImportError:
     pass
 

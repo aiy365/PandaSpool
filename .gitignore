@@ -21,3 +21,24 @@ web/node_modules/
 .codex-tmp/
 /dist/
 data/
+
+# 构建产物（勿入库）
+desk/src/bin/
+desk/src/obj/
+desk/publish/
+desk/*.pdb
+material-lab/src/printpilot_material_lab/dashboard_dist/
+material-lab/dist/
+material-lab/dist-stale-*/
+material-lab/build/
+material-lab/build-stale-*/
+material-lab/**/__pycache__/
+material-lab/**/*.egg-info/
+material-lab/**/.pytest_cache/
+enclosure-sensor/exports/
+enclosure-sensor/node_modules/
+
+# 一次性数据包/照片
+scripts/*.tgz
+scripts/pp-inbox-export/
+scripts/inbox-pending/

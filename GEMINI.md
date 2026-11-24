@@ -22,11 +22,11 @@
   GOOS=linux GOARCH=amd64 go build -o printpilot-linux-amd64 ./cmd/pandaspool
 
   # 2. Stop Remote Service
-  ssh -i ~/.ssh/openclaw159.pem -o StrictHostKeyChecking=no root@159.75.227.95 "systemctl stop printpilot"
+  ssh -i ~/.ssh/<your-key>.pem -o StrictHostKeyChecking=no root@<server-host> "systemctl stop printpilot"
 
   # 3. SCP Binary
-  scp -i ~/.ssh/openclaw159.pem -o StrictHostKeyChecking=no printpilot-linux-amd64 root@159.75.227.95:/opt/printpilot/printpilot
+  scp -i ~/.ssh/<your-key>.pem -o StrictHostKeyChecking=no printpilot-linux-amd64 root@<server-host>:/opt/printpilot/printpilot
 
   # 4. Restart Service
-  ssh -i ~/.ssh/openclaw159.pem -o StrictHostKeyChecking=no root@159.75.227.95 "systemctl start printpilot"
+  ssh -i ~/.ssh/<your-key>.pem -o StrictHostKeyChecking=no root@<server-host> "systemctl start printpilot"
   ```
