@@ -277,10 +277,11 @@ function renderApp(me) {
           <ul tabindex="0" class="menu menu-sm dropdown-content mt-3 z-[50] p-2 shadow-xl bg-base-100 rounded-2xl w-56 border border-base-300">
             <li><a href="#/" data-p="/">${ppIcon("home")} 总览</a></li>
             <li><a href="#/machine" data-p="/machine">${ppIcon("printer")} 机台</a></li>
-            <li><a href="#/spools" data-p="/spools">${ppIcon("spool")} 料盘</a></li>
-            <li><a href="#/materials" data-p="/materials">${ppIcon("flask")} 耗材</a></li>
-            <li><a href="#/stock" data-p="/stock">${ppIcon("matrix")} 盘点</a></li>
-            <li><a href="#/compare" data-p="/compare">${ppIcon("flame")} 横评</a></li>
+            <li class="menu-title text-[11px] uppercase tracking-wider opacity-60">耗材</li>
+            <li><a href="#/materials" data-p="/materials">${ppIcon("flask")} 耗材目录</a></li>
+            <li><a href="#/spools" data-p="/spools">${ppIcon("spool")} 物理料盘</a></li>
+            <li><a href="#/stock" data-p="/stock">${ppIcon("matrix")} 架子盘点</a></li>
+            <li><a href="#/compare" data-p="/compare">${ppIcon("flame")} 参数横评</a></li>
             <li><a href="#/air" data-p="/air">${ppIcon("leaf")} 空气</a></li>
             <li><a href="#/settings" data-p="/settings">${ppIcon("cog")} 设置</a></li>
           </ul>
@@ -297,16 +298,13 @@ function renderApp(me) {
           </div>
         </div>
         
-        <!-- Desktop Pill Nav -->
+        <!-- Desktop Pill Nav：5 个分组，耗材子页用二级标签 -->
         <nav class="nav-desktop items-center gap-1 bg-base-100/70 p-1 rounded-full border border-base-content/5 shadow-inner">
-          <a href="#/" data-p="/" class="nav-pill">${ppIcon("home")}<span>总览</span></a>
-          <a href="#/machine" data-p="/machine" class="nav-pill">${ppIcon("printer")}<span>机台</span></a>
-          <a href="#/spools" data-p="/spools" class="nav-pill">${ppIcon("spool")}<span>料盘</span></a>
-          <a href="#/materials" data-p="/materials" class="nav-pill">${ppIcon("flask")}<span>耗材</span></a>
-          <a href="#/stock" data-p="/stock" class="nav-pill">${ppIcon("matrix")}<span>盘点</span></a>
-          <a href="#/compare" data-p="/compare" class="nav-pill">${ppIcon("flame")}<span>横评</span></a>
-          <a href="#/air" data-p="/air" class="nav-pill">${ppIcon("leaf")}<span>空气</span></a>
-          <a href="#/settings" data-p="/settings" class="nav-pill">${ppIcon("cog")}<span>设置</span></a>
+          <a href="#/" data-p="/" data-group="home" class="nav-pill">${ppIcon("home")}<span>总览</span></a>
+          <a href="#/machine" data-p="/machine" data-group="machine" class="nav-pill">${ppIcon("printer")}<span>机台</span></a>
+          <a href="#/materials" data-p="/materials" data-group="inventory" class="nav-pill">${ppIcon("flask")}<span>耗材</span></a>
+          <a href="#/air" data-p="/air" data-group="air" class="nav-pill">${ppIcon("leaf")}<span>空气</span></a>
+          <a href="#/settings" data-p="/settings" data-group="settings" class="nav-pill">${ppIcon("cog")}<span>设置</span></a>
         </nav>
         
         <div class="grow"></div>
@@ -320,7 +318,9 @@ function renderApp(me) {
         </div>
       </div>
     </header>
-    
+
+    <div id="subnav" class="pp-subnav hidden" aria-label="耗材分区"></div>
+
     <main class="page flex-1 w-full" id="page"></main>
     
     <!-- Modals -->
@@ -411,7 +411,7 @@ function airAgeText(ts) {
   return `${Math.round(age / 86400)} 天前`;
 }
 
-const AIR_FRESH_SECONDS = 15 * 60; // 统一 15 分钟阈值：15 分钟内视为在线/新鲜，超过视为离线/陈旧
+const AIR_FRESH_SECONDS = 5 * 60; // 与后端 AirFreshThresholdSec 对齐：5 分钟无上报即离线
 
 function getProbeFreshness(ts) {
   let n = Number(ts);
@@ -429,7 +429,7 @@ function getProbeFreshness(ts) {
   if (ageSec <= AIR_FRESH_SECONDS) {
     return { isOnline: true, isLive: false, label: `探头在线 · ${Math.floor(ageSec / 60)} 分钟前`, badgeCls: "badge-success", textCls: "text-success", ageSec, ageText };
   }
-  return { isOnline: false, isLive: false, label: "探头离线 · 超过 15 分钟未更新", badgeCls: "badge-warning", textCls: "text-warning", ageSec, ageText };
+  return { isOnline: false, isLive: false, label: "探头离线 · 超过 5 分钟未更新", badgeCls: "badge-warning", textCls: "text-warning", ageSec, ageText };
 }
 
 function resolveColorRef(p, raw) {
@@ -442,14 +442,52 @@ function resolveColorRef(p, raw) {
   return t;
 }
 
+function navGroup(p) {
+  if (p === "/") return "home";
+  if (p === "/machine") return "machine";
+  if (p === "/air") return "air";
+  if (p === "/settings") return "settings";
+  // 耗材分组：目录 / 产品详情 / 料盘 / 盘点 / 横评
+  if (p === "/spools" || p === "/stock" || p === "/compare" || p === "/materials" || p.startsWith("/materials/")) return "inventory";
+  return "home";
+}
+
+const INVENTORY_TABS = [
+  { p: "/materials", label: "耗材目录" },
+  { p: "/spools", label: "物理料盘" },
+  { p: "/stock", label: "架子盘点" },
+  { p: "/compare", label: "参数横评" },
+];
+
 function paint(me) {
-  document.querySelectorAll(".nav-desktop a, .nav-mobile a").forEach((a) => {
-    const on = route().startsWith(a.dataset.p) && (a.dataset.p !== "/" || route() === "/");
+  const p = route();
+  const group = navGroup(p);
+
+  document.querySelectorAll(".nav-desktop a").forEach((a) => {
+    const on = a.dataset.group === group;
+    a.classList.toggle("active", on);
+  });
+  document.querySelectorAll(".nav-mobile a").forEach((a) => {
+    const on = p.startsWith(a.dataset.p) && (a.dataset.p !== "/" || p === "/");
     a.classList.toggle("active", on);
     a.classList.toggle("menu-active", on);
   });
+
+  const sub = $("#subnav");
+  if (sub) {
+    if (group === "inventory") {
+      sub.innerHTML = `<div class="tabs tabs-boxed bg-base-100 border border-base-300/60 p-1 w-fit max-w-full overflow-x-auto shadow-sm">${INVENTORY_TABS.map((t) => {
+        const on = p === t.p || (t.p === "/materials" && p.startsWith("/materials"));
+        return `<a href="#${t.p}" class="tab tab-sm ${on ? "tab-active font-bold" : ""}">${t.label}</a>`;
+      }).join("")}</div>`;
+      sub.classList.remove("hidden");
+    } else {
+      sub.innerHTML = "";
+      sub.classList.add("hidden");
+    }
+  }
+
   $("#page")?.classList.remove("page-wide");
-  const p = route();
   if (p !== "/machine") stopMachineLive();
   if (p !== "/air") stopAirLive();
   const run = () => {
@@ -2218,13 +2256,11 @@ async function viewMachine() {
     };
   };
 
-  let spools = [];
   const draw = async () => {
     let d;
     try { d = await api("/api/machine"); }
     catch (ex) { toast(ex.message, "error", { id: "mach" }); if (!$("#mach")) pageError(ex); return; }
     ensureCatalog();
-    try { spools = await api("/api/spools"); } catch(e) {}
     ensureShell();
     const b = d.bambu || {};
     const air = d.air || {};
@@ -4400,7 +4436,7 @@ async function viewSettings(me) {
     `, "setcat-ezviz")}
     ${card(`
       <h2 class="card-title">消息通知（企业微信）</h2>
-      <p class="text-sm muted">首层完成与打印结束时自动抓监控图推送到微信，免费。</p>
+      <p class="text-sm muted">打印完成 10 分钟后自动推送到微信（无配图），免费。</p>
       <div class="mt-2">
         <div class="font-bold border-b pb-1 mb-2">首次接入步骤</div>
         <ol class="text-xs muted mb-3" style="line-height:1.8;padding-left:1.2em;list-style:decimal">
@@ -4711,7 +4747,7 @@ async function viewSpools() {
       <!-- 搜索与状态过滤器 -->
       <div class="flex flex-wrap items-center justify-between gap-3 mb-4">
         <input type="text" id="spool-search" placeholder="搜索短编号 (如 PP-012)、耗材名称或品牌..." class="input input-bordered input-sm flex-1 min-w-[220px] rounded-xl" value="${esc(currentSearch)}">
-        <div class="tabs tabs-boxed bg-base-200/80 p-1 rounded-xl">
+        <div class="tabs tabs-boxed bg-base-200/80 p-1 rounded-xl" id="spool-filter-tabs">
           <a class="tab tab-sm ${currentFilter === 'all' ? 'tab-active font-bold' : ''}" data-filter="all">全部 (${totalCount})</a>
           <a class="tab tab-sm ${currentFilter === 'opened' ? 'tab-active font-bold' : ''}" data-filter="opened">已开封 (${openedCount})</a>
           <a class="tab tab-sm ${currentFilter === 'unopened' ? 'tab-active font-bold' : ''}" data-filter="unopened">未开封 (${unopenedCount})</a>
@@ -4778,9 +4814,15 @@ async function viewSpools() {
     $("#spool-search")?.addEventListener("input", (e) => {
       currentSearch = e.target.value;
       render();
+      // render() 会重建整页，把焦点和光标还回去，避免输入框失焦
+      const el = $("#spool-search");
+      if (el) {
+        el.focus();
+        el.setSelectionRange(el.value.length, el.value.length);
+      }
     });
 
-    document.querySelectorAll(".tabs .tab").forEach(t => {
+    document.querySelectorAll("#spool-filter-tabs .tab").forEach(t => {
       t.addEventListener("click", (e) => {
         currentFilter = e.target.dataset.filter;
         render();
