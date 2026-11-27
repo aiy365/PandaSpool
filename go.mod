@@ -3,7 +3,7 @@ module pandaspool
 go 1.26.0
 
 require (
-	github.com/eclipse/paho.mqtt.golang v1.5.1
+	github.com/eclipse/paho.mqtt.golang v1.5.2
 	github.com/gorilla/sessions v1.4.0
 	golang.org/x/crypto v0.59.0
 	modernc.org/sqlite v1.62.0
